@@ -16,7 +16,7 @@ function errorHandler(error, _req, res, _next) {
     statusCode = 400;
     message =
       error.code === 'LIMIT_FILE_SIZE'
-        ? 'File vượt quá dung lượng tối đa 5MB'
+        ? 'File vượt quá dung lượng tối đa cho phép'
         : 'File tải lên không hợp lệ';
   } else if (error instanceof Prisma.PrismaClientKnownRequestError) {
     if (error.code === 'P2002') {

@@ -1,0 +1,98 @@
+# Cấu hình production: chỉ public HTTPS, MongoDB và API chỉ trong Docker network.
+# Chạy: docker compose -f docker-compose.prod.yml --env-file .env.production up -d --build
+services:
+  mongodb:
+    image: mongo:7
+    container_name: thi-online-mongodb
+    restart: always
+    command: ["--replSet", "rs0", "--bind_ip_all"]
+    expose:
+      - "27017"
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - >
+          mongosh --quiet --eval "try { rs.status().ok } catch (e) { rs.initiate({_id:'rs0',members:[{_id:0,host:'mongodb:27017'}]}).ok }"
+      interval: 5s
+      timeout: 10s
+      retries: 20
+      start_period: 10s
+    volumes:
+      - mongodb_data:/data/db
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  server:
+    build:
+      context: ./server
+      dockerfile: Dockerfile
+    container_name: thi-online-server
+    restart: always
+    environment:
+      NODE_ENV: production
+      PORT: 5050
+      CLIENT_URL: ${CLIENT_URL:?CLIENT_URL is required, e.g. https://exam.example.com}
+      MONGODB_URI: ${MONGODB_URI:-mongodb://mongodb:27017/thi_online?replicaSet=rs0}
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET is required (at least 32 characters)}
+      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-7d}
+      COOKIE_NAME: ${COOKIE_NAME:-token}
+      COOKIE_SECURE: "true"
+      TRUST_PROXY: "1"
+      SEED_ADMIN_USERNAME: ${SEED_ADMIN_USERNAME:-admin}
+      SEED_ADMIN_PASSWORD: ${SEED_ADMIN_PASSWORD:?SEED_ADMIN_PASSWORD is required}
+      SEED_ADMIN_FULLNAME: ${SEED_ADMIN_FULLNAME:-Quản trị viên}
+      SEED_ADMIN_EMAIL: ${SEED_ADMIN_EMAIL:-admin@example.com}
+      SEED_ADMIN_RESET_PASSWORD: "false"
+    expose:
+      - "5050"
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - >
+          node -e "fetch('http://127.0.0.1:5050/api/health').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    stop_grace_period: 30s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  client:
+    build:
+      context: ./client
+      dockerfile: Dockerfile
+    container_name: thi-online-client
+    restart: always
+    ports:
+      - "${HTTPS_PORT:-443}:443"
+    volumes:
+      - ${CERTS_DIR:-./certs}:/etc/nginx/certs:ro
+    depends_on:
+      server:
+        condition: service_healthy
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - wget -q --no-check-certificate -O /dev/null https://127.0.0.1/ || exit 1
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  mongodb_data:

@@ -1,5 +1,7 @@
 const asyncHandler = require('../../utils/asyncHandler');
 const adminDataService = require('./admin-data.service');
+const adminBackupService = require('./admin-backup.service');
+const ApiError = require('../../utils/ApiError');
 
 const getSummary = asyncHandler(async (_req, res) => {
   const data = await adminDataService.getSummary();
@@ -48,6 +50,38 @@ const deleteExam = asyncHandler(async (req, res) => {
   res.json({ success: true, message: 'Đã xoá vĩnh viễn đề thi', data });
 });
 
+const exportBackup = asyncHandler(async (_req, res) => {
+  const backup = await adminBackupService.exportBackup();
+  const filename = `vieexam-backup-${new Date().toISOString().slice(0, 10)}.json`;
+
+  res.setHeader('Content-Type', 'application/json; charset=utf-8');
+  res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+  res.setHeader('Cache-Control', 'no-store');
+  res.send(JSON.stringify(backup, null, 2));
+});
+
+const importBackup = asyncHandler(async (req, res) => {
+  if (!req.file) {
+    throw new ApiError(400, 'Vui lòng chọn file sao lưu JSON');
+  }
+
+  const data = await adminBackupService.importBackup({
+    buffer: req.file.buffer,
+    mode: req.body.mode,
+    confirmReplace: req.body.confirmReplace === 'true',
+    currentAdminId: req.user.id,
+  });
+
+  res.json({
+    success: true,
+    message:
+      data.mode === 'replace'
+        ? 'Đã khôi phục dữ liệu từ bản sao lưu'
+        : 'Đã hợp nhất dữ liệu từ bản sao lưu',
+    data,
+  });
+});
+
 module.exports = {
   getSummary,
   listTeachers,
@@ -60,4 +94,6 @@ module.exports = {
   deleteClass,
   deleteStudent,
   deleteExam,
+  exportBackup,
+  importBackup,
 };

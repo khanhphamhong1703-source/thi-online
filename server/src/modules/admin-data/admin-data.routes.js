@@ -1,6 +1,8 @@
 const express = require('express');
 const validate = require('../../middlewares/validate');
+const { uploadBackup } = require('../../middlewares/upload');
 const adminDataController = require('./admin-data.controller');
+const { importOptionsSchema } = require('./admin-backup.service');
 const {
   teacherQuerySchema,
   classQuerySchema,
@@ -16,6 +18,13 @@ router.get('/teachers', validate({ query: teacherQuerySchema }), adminDataContro
 router.get('/classes', validate({ query: classQuerySchema }), adminDataController.listClasses);
 router.get('/students', validate({ query: studentQuerySchema }), adminDataController.listStudents);
 router.get('/exams', validate({ query: examQuerySchema }), adminDataController.listExams);
+router.get('/backup/export', adminDataController.exportBackup);
+router.post(
+  '/backup/import',
+  uploadBackup,
+  validate({ body: importOptionsSchema }),
+  adminDataController.importBackup
+);
 
 router.patch(
   '/classes/:id/restore',

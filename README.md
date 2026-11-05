@@ -65,6 +65,7 @@ Học sinh chưa có tài khoản đăng nhập. Việc xác danh dựa trên m�
 - Đặt lại mật khẩu giáo viên.
 - Quản lý dữ liệu toàn hệ thống: xem giáo viên, lớp học, học sinh, đề thi; bao gồm tài khoản bị khóa và lớp đã lưu trữ.
 - Khôi phục lớp đã lưu trữ, mở khóa tài khoản và xoá vĩnh viễn dữ liệu có kiểm tra ràng buộc.
+- Sao lưu toàn bộ dữ liệu ra JSON và nhập lại theo chế độ hợp nhất hoặc thay thế.
 
 ## 2. Công nghệ
 
@@ -189,6 +190,68 @@ docker compose down
 ```
 
 Lệnh `docker compose down -v` xoá cả volume dữ liệu MongoDB; chỉ dùng khi muốn reset toàn bộ dữ liệu.
+
+#### 5.1.1. Cấu hình production
+
+Dùng `docker-compose.prod.yml` thay cho `docker-compose.yml` khi triển khai thật. File này chỉ public cổng HTTPS; MongoDB và API chỉ truy cập trong Docker network.
+
+```powershell
+Copy-Item .env.production.example .env.production
+```
+
+Mở `.env.production` và cấu hình:
+
+```env
+HTTPS_PORT=443
+CLIENT_URL=https://your-domain.com
+CERTS_DIR=./certs
+JWT_SECRET=<chuỗi-ngẫu-nhiên-tối-thiểu-32-ký-tự>
+SEED_ADMIN_PASSWORD=<mật-khẩu-admin-mạnh>
+```
+
+Có thể tạo `JWT_SECRET` bằng:
+
+```bash
+openssl rand -base64 48
+```
+
+Đặt chứng chỉ thật vào `certs/fullchain.pem` và `certs/privkey.pem`, trỏ DNS domain về server, sau đó:
+
+```bash
+docker compose -f docker-compose.prod.yml --env-file .env.production up -d --build
+```
+
+Nếu stack local đang chạy, lệnh trên sẽ tự recreate các container sang cấu hình production.
+
+Kiểm tra:
+
+```bash
+docker compose -f docker-compose.prod.yml --env-file .env.production ps
+docker compose -f docker-compose.prod.yml --env-file .env.production logs -f server client
+```
+
+Các đặc điểm của cấu hình production:
+
+- Chỉ map `${HTTPS_PORT}` ra ngoài; không publish `27017` (MongoDB) và `5050` (API).
+- `COOKIE_SECURE=true` và `TRUST_PROXY=1` cố định.
+- Bắt buộc có `CLIENT_URL`, `JWT_SECRET` và `SEED_ADMIN_PASSWORD`; thiếu biến nào Compose sẽ dừng.
+- `SEED_ADMIN_RESET_PASSWORD=false`: khởi động lại container không ghi đè mật khẩu Admin đã đổi. Lần đầu trên database mới vẫn tạo Admin từ `SEED_ADMIN_PASSWORD`.
+- Log Docker được giới hạn `10m` mỗi file, giữ 3 file.
+
+Nếu cần reset khẩn cấp mật khẩu Admin về giá trị trong `.env.production`:
+
+```bash
+docker compose -f docker-compose.prod.yml --env-file .env.production exec -e SEED_ADMIN_RESET_PASSWORD=true server node prisma/seed.js
+```
+
+Sao lưu dữ liệu trước khi nâng cấp:
+
+```bash
+docker compose -f docker-compose.prod.yml --env-file .env.production exec -T mongodb mongodump --archive=/tmp/backup.gz --gzip
+docker cp thi-online-mongodb:/tmp/backup.gz ./backup.gz
+```
+
+Không dùng `docker compose ... down -v` trên môi trường production vì sẽ xóa volume dữ liệu.
 
 ### 5.2. Chỉ khởi động MongoDB bằng Docker
 
@@ -407,6 +470,8 @@ Class
 | DELETE | `/api/admin/data/classes/:id` | Xoá vĩnh viễn lớp |
 | DELETE | `/api/admin/data/students/:id` | Xoá vĩnh viễn học sinh |
 | DELETE | `/api/admin/data/exams/:id` | Xoá vĩnh viễn đề thi |
+| GET | `/api/admin/data/backup/export` | Xuất toàn bộ dữ liệu ra file JSON |
+| POST | `/api/admin/data/backup/import` | Nhập file JSON, hỗ trợ `merge` hoặc `replace` |
 
 ### Giáo viên — lớp, học sinh, đề thi
 

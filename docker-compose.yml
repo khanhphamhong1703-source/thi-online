@@ -1,3 +1,4 @@
+# Cấu hình local/full-stack. Production dùng docker-compose.prod.yml.
 services:
   mongodb:
     image: mongo:7

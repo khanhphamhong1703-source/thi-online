@@ -12,4 +12,16 @@ export const adminDataApi = {
   deleteClass: (id) => api.delete(`/admin/data/classes/${id}`),
   deleteStudent: (id) => api.delete(`/admin/data/students/${id}`),
   deleteExam: (id) => api.delete(`/admin/data/exams/${id}`),
+  exportBackup: () =>
+    api.get('/admin/data/backup/export', {
+      responseType: 'blob',
+      timeout: 120000,
+    }),
+  importBackup: (file, mode) => {
+    const form = new FormData();
+    form.append('file', file);
+    form.append('mode', mode);
+    if (mode === 'replace') form.append('confirmReplace', 'true');
+    return api.post('/admin/data/backup/import', form, { timeout: 120000 });
+  },
 };

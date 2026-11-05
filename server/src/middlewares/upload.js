@@ -27,7 +27,19 @@ const documentUpload = multer({
   },
 });
 
+const backupUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 50 * 1024 * 1024, files: 1 },
+  fileFilter: (_req, file, cb) => {
+    if (!/\.json$/i.test(file.originalname)) {
+      return cb(new ApiError(400, 'Chỉ chấp nhận file sao lưu JSON'));
+    }
+    return cb(null, true);
+  },
+});
+
 const uploadExcel = excelUpload.single('file');
 const uploadDocument = documentUpload.single('file');
+const uploadBackup = backupUpload.single('file');
 
-module.exports = { uploadExcel, uploadDocument, MAX_FILE_SIZE };
+module.exports = { uploadExcel, uploadDocument, uploadBackup, MAX_FILE_SIZE };

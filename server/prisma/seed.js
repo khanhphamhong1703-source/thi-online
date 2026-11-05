@@ -14,6 +14,7 @@ async function main() {
     throw new Error('SEED_ADMIN_PASSWORD phải có ít nhất 8 ký tự trong file .env');
   }
 
+  const resetPassword = process.env.SEED_ADMIN_RESET_PASSWORD !== 'false';
   const passwordHash = await bcrypt.hash(password, 10);
 
   const data = {
@@ -27,11 +28,20 @@ async function main() {
 
   const existing = await prisma.user.findUnique({ where: { username } });
   const admin = existing
-    ? await prisma.user.update({ where: { username }, data })
-    : await prisma.user.create({ data: { username, ...data } });
+    ? await prisma.user.update({
+        where: { username },
+        data: resetPassword ? { ...data, password: passwordHash } : data,
+      })
+    : await prisma.user.create({ data: { username, ...data, password: passwordHash } });
 
-  console.log(`Đã tạo/cập nhật tài khoản Admin: ${admin.username}`);
-  console.log('Mật khẩu Admin lấy từ biến SEED_ADMIN_PASSWORD trong server/.env');
+  console.log(
+    existing && !resetPassword
+      ? `Đã cập nhật tài khoản Admin (giữ nguyên mật khẩu): ${admin.username}`
+      : `Đã tạo/cập nhật tài khoản Admin: ${admin.username}`
+  );
+  if (!existing || resetPassword) {
+    console.log('Mật khẩu Admin lấy từ biến SEED_ADMIN_PASSWORD');
+  }
 }
 
 main()
