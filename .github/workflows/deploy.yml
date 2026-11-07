@@ -1,0 +1,61 @@
+name: Deploy production
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: production-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: self-hosted
+
+    steps:
+      - name: Pull latest source
+        env:
+          DEPLOY_PATH: ${{ vars.DEPLOY_PATH }}
+        run: |
+          set -euo pipefail
+          test -n "$DEPLOY_PATH"
+          cd "$DEPLOY_PATH"
+          git fetch origin main
+          git checkout main
+          git pull --ff-only origin main
+
+      - name: Rebuild and restart containers
+        env:
+          DEPLOY_PATH: ${{ vars.DEPLOY_PATH }}
+        run: |
+          set -euo pipefail
+          cd "$DEPLOY_PATH"
+          docker compose -f docker-compose.prod.yml \
+            --env-file .env.production \
+            --profile tunnel up -d --build
+
+      - name: Wait for API health
+        env:
+          DEPLOY_PATH: ${{ vars.DEPLOY_PATH }}
+        run: |
+          set -euo pipefail
+          for i in $(seq 1 24); do
+            if curl -fsS https://viexam.io.vn/api/health >/dev/null; then
+              echo "Health check passed"
+              exit 0
+            fi
+            sleep 5
+          done
+
+          cd "$DEPLOY_PATH"
+          docker compose -f docker-compose.prod.yml \
+            --env-file .env.production \
+            --profile tunnel ps
+          docker compose -f docker-compose.prod.yml \
+            --env-file .env.production \
+            --profile tunnel logs --tail=100 server client cloudflared
+          exit 1
