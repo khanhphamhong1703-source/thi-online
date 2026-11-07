@@ -253,6 +253,50 @@ docker cp thi-online-mongodb:/tmp/backup.gz ./backup.gz
 
 Không dùng `docker compose ... down -v` trên môi trường production vì sẽ xóa volume dữ liệu.
 
+#### 5.1.2. Cloudflare Tunnel
+
+Dùng Cloudflare Tunnel khi máy chạy Docker không có IP public, không muốn mở port 80/443 hoặc đang ở sau CGNAT.
+
+1. Trong Cloudflare Zero Trust → Networks → Tunnels, tạo tunnel mới và copy token.
+2. Điền token vào `.env.production`:
+
+```env
+CLOUDFLARE_TUNNEL_TOKEN=<token-cua-tunnel>
+```
+
+3. Chạy ứng dụng kèm profile `tunnel`:
+
+```bash
+docker compose -f docker-compose.prod.yml --env-file .env.production \
+  --profile tunnel up -d --build
+```
+
+4. Trong cấu hình Public Hostname của tunnel, trỏ domain về service nội bộ:
+
+```text
+Subdomain: @
+Domain: viexam.io.vn
+Service: https://client:443
+```
+
+Bật **No TLS Verify** nếu nginx dùng chứng chỉ self-signed. Service `client:443` là tên container và cổng nội bộ trong Docker network, không phải `localhost`.
+
+5. Kiểm tra:
+
+```bash
+docker compose -f docker-compose.prod.yml --env-file .env.production \
+  --profile tunnel ps
+
+docker compose -f docker-compose.prod.yml --env-file .env.production \
+  --profile tunnel logs --tail=50 cloudflared
+```
+
+Khi dùng Tunnel, không cần forward port 80/443 trên router. Vẫn nên đóng các port này trên firewall public. `HTTPS_PORT` chỉ là cổng map ra host; nếu 443 đang bận, có thể đổi thành `8443` mà không ảnh hưởng Tunnel vì Tunnel kết nối tới `client:443` bên trong Docker.
+
+Nếu dùng cả `www`, tạo thêm Public Hostname `www.viexam.io.vn` trỏ cùng service, hoặc cấu hình redirect về domain chính.
+
+Mỗi máy chạy một tunnel riêng; không dùng chung token cho nhiều máy nếu không muốn Cloudflare phân tải giữa các máy.
+
 ### 5.2. Chỉ khởi động MongoDB bằng Docker
 
 Nếu muốn chạy React/Express bằng `npm` trên máy host và chỉ dùng MongoDB trong Docker:

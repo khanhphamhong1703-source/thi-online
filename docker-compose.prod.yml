@@ -94,5 +94,23 @@ services:
         max-size: "10m"
         max-file: "3"
 
+  # Tùy chọn: chạy thêm Cloudflare Tunnel bằng --profile tunnel.
+  # Trong Cloudflare dashboard, trỏ public hostname tới https://client:443
+  # và bật "No TLS Verify" nếu dùng chứng chỉ self-signed.
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    container_name: thi-online-cloudflared
+    restart: unless-stopped
+    command: tunnel --no-autoupdate run --token ${CLOUDFLARE_TUNNEL_TOKEN:-}
+    depends_on:
+      client:
+        condition: service_healthy
+    profiles: ["tunnel"]
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
 volumes:
   mongodb_data:
