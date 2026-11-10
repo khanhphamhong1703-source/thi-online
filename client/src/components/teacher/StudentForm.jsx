@@ -180,13 +180,7 @@ export default function StudentForm({ mode, classId, studentId }) {
       <PageHeader
         backTo={backPath}
         backLabel={isEdit ? 'Quay lại chi tiết học sinh' : 'Quay lại danh sách học sinh'}
-        eyebrow={classroom ? `${classroom.classCode} · ${classroom.schoolYear}` : 'Hồ sơ học sinh'}
         title={isEdit ? 'Chỉnh sửa học sinh' : 'Thêm học sinh vào lớp'}
-        description={
-          isEdit
-            ? 'Thông tin học sinh được đồng bộ trên toàn hệ thống. Mã học sinh được giữ cố định.'
-            : 'Mã học sinh do hệ thống cấp ngẫu nhiên khi lưu, giáo viên không cần nhập.'
-        }
       />
 
       {classroom ? (

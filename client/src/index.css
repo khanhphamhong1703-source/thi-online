@@ -38,7 +38,7 @@
   }
 
   .table-header {
-    @apply bg-slate-50/80 text-left text-xs font-semibold uppercase tracking-wide text-slate-500;
+    @apply bg-slate-50 text-left text-xs font-semibold uppercase tracking-wide text-slate-500;
   }
 
   .table-row {

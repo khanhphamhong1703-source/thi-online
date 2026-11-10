@@ -119,13 +119,7 @@ export default function ClassForm({ mode, classId }) {
       <PageHeader
         backTo={isEdit ? `/teacher/classes/${classId}` : '/teacher/classes'}
         backLabel={isEdit ? 'Quay lại chi tiết lớp học' : 'Quay lại danh sách lớp học'}
-        eyebrow="Lớp học"
         title={isEdit ? 'Chỉnh sửa lớp học' : 'Tạo lớp học mới'}
-        description={
-          isEdit
-            ? 'Cập nhật thông tin lớp. Mã lớp cần duy nhất trong tài khoản của bạn.'
-            : 'Lớp học mới sẽ thuộc quyền quản lý của tài khoản giáo viên hiện tại.'
-        }
       />
 
       <form onSubmit={handleSubmit(onSubmit)} noValidate>

@@ -20,8 +20,27 @@ import { classApi } from '../../api/classes';
 import { examApi } from '../../api/exams';
 import { getErrorMessage } from '../../api/client';
 import { useToast } from '../../contexts/ToastContext';
-import { defaultExamWindow, toDateTimeLocalValue } from '../../utils/exam';
+import {
+  SECTION_TITLES,
+  defaultExamWindow,
+  toDateTimeLocalValue,
+} from '../../utils/exam';
 import { SHORT_ANSWER_PATTERNS, distributeShortAnswer } from '../../utils/shortAnswer';
+import {
+  DEFAULT_TRUE_FALSE_SCORES,
+  OPTION_LETTERS,
+  SECTIONS,
+  blankQuestion,
+  blankStatements,
+  draftFromExamQuestion,
+  getSectionPoints,
+  makeClientId,
+  normalizeTrueFalseScores,
+  sortQuestionsBySection,
+  splitShortAnswer,
+  toQuestionPayload,
+  validateQuestionDraft,
+} from '../../utils/examQuestions';
 import FormField from '../../components/FormField';
 import Input from '../../components/Input';
 import Textarea from '../../components/Textarea';
@@ -30,10 +49,6 @@ import LoadingState from '../../components/LoadingState';
 import Badge from '../../components/Badge';
 import ImportQuestionsModal from '../../components/teacher/ImportQuestionsModal';
 
-const SECTIONS = ['I', 'II', 'III'];
-const SECTION_ORDER = { I: 0, II: 1, III: 2 };
-const OPTION_LETTERS = ['A', 'B', 'C', 'D'];
-const DEFAULT_TRUE_FALSE_SCORES = [0.1, 0.25, 0.5, 1];
 const schema = z
   .object({
     title: z.string().trim().min(3, 'Tên đề thi phải có ít nhất 3 ký tự').max(200),
@@ -57,69 +72,8 @@ const schema = z
     path: ['closeAt'],
   });
 
-function makeClientId() {
-  return `q-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-}
-
-function blankStatements() {
-  return Array.from({ length: 4 }, () => ({ content: '', correct: false }));
-}
-
-function splitShortAnswer(value = '') {
-  const chars = String(value || '').split('');
-  return Array.from({ length: 4 }, (_, index) => chars[index] || '');
-}
-
-function isValidShortAnswer(value) {
-  const answer = String(value || '').trim();
-  if (answer.length < 1 || answer.length > 4) return false;
-  if (!/^-?[0-9,]+$/.test(answer)) return false;
-  if ((answer.match(/,/g) || []).length > 1) return false;
-  if (answer.startsWith(',') || answer.endsWith(',')) return false;
-  if (answer.startsWith('-') && !/^-?[0-9]/.test(answer)) return false;
-  return /[0-9]/.test(answer);
-}
-
-function normalizeTrueFalseScores(value) {
-  if (!Array.isArray(value) || value.length !== 4) {
-    return [...DEFAULT_TRUE_FALSE_SCORES];
-  }
-  const scores = value.map((score) => Number(score));
-  return scores.some((score) => !Number.isFinite(score) || score < 0)
-    ? [...DEFAULT_TRUE_FALSE_SCORES]
-    : scores;
-}
-
-function blankQuestion(section = 'I') {
-  return {
-    clientId: makeClientId(),
-    section,
-    content: '',
-    options: section === 'I' ? ['', '', '', ''] : [],
-    correctOption: 0,
-    statements: section === 'II' ? blankStatements() : [],
-    correctBoxes: section === 'III' ? ['', '', '', ''] : [],
-    points: 1,
-  };
-}
-
-function sortQuestionsBySection(questions) {
-  return [...questions].sort(
-    (first, second) => (SECTION_ORDER[first.section] ?? 0) - (SECTION_ORDER[second.section] ?? 0)
-  );
-}
-
-function getSectionPoints(questions) {
-  return SECTIONS.reduce((totals, section) => {
-    totals[section] = questions
-      .filter((question) => question.section === section)
-      .reduce((sum, question) => sum + (Number(question.points) || 0), 0);
-    return totals;
-  }, {});
-}
-
 export default function ExamFormPage({ mode }) {
-  const isEdit = mode === 'edit';
+  const isEdit = mode === 'edit' || mode === 'questions';
   const { id } = useParams();
   const navigate = useNavigate();
   const toast = useToast();
@@ -128,7 +82,6 @@ export default function ExamFormPage({ mode }) {
   const [questions, setQuestions] = useState(() => [blankQuestion('I')]);
   const [activeQuestionId, setActiveQuestionId] = useState(null);
   const [questionErrors, setQuestionErrors] = useState([]);
-  const [sectionTitles, setSectionTitles] = useState({ I: '', II: '', III: '' });
   const [trueFalseScores, setTrueFalseScores] = useState(() =>
     DEFAULT_TRUE_FALSE_SCORES.map(String)
   );
@@ -138,7 +91,7 @@ export default function ExamFormPage({ mode }) {
     II: false,
     III: false,
   });
-  const [activeTab, setActiveTab] = useState('questions');
+  const [activeTab, setActiveTab] = useState(mode === 'edit' ? 'settings' : 'questions');
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -262,26 +215,7 @@ export default function ExamFormPage({ mode }) {
           const loadedScores = normalizeTrueFalseScores(exam.trueFalseScores);
           setTrueFalseScores(loadedScores.map(String));
           const loadedQuestions = sortQuestionsBySection(
-            (exam.questions || []).map((question) => ({
-              clientId: makeClientId(),
-              remoteId: question.id,
-              section: SECTIONS.includes(question.section) ? question.section : 'I',
-              content: question.content,
-              options:
-                question.section === 'I'
-                  ? [...(question.options || []), '', '', '', ''].slice(0, 4)
-                  : [],
-              correctOption: question.correctOption,
-              statements:
-                question.section === 'II' && Array.isArray(question.statements)
-                  ? [...question.statements, ...blankStatements()].slice(0, 4)
-                  : blankStatements(),
-              correctBoxes:
-                question.section === 'III'
-                  ? splitShortAnswer(question.correctText)
-                  : ['', '', '', ''],
-              points: question.points,
-            }))
+            (exam.questions || []).map(draftFromExamQuestion)
           );
           setQuestions(loadedQuestions);
           const loadedTotals = getSectionPoints(loadedQuestions);
@@ -289,11 +223,6 @@ export default function ExamFormPage({ mode }) {
             I: String(loadedTotals.I ?? 0),
             II: String(loadedTotals.II ?? 0),
             III: String(loadedTotals.III ?? 0),
-          });
-          setSectionTitles({
-            I: exam.sectionTitles?.I || '',
-            II: exam.sectionTitles?.II || '',
-            III: exam.sectionTitles?.III || '',
           });
           setActiveQuestionId(loadedQuestions[0]?.clientId || null);
         }
@@ -393,7 +322,7 @@ export default function ExamFormPage({ mode }) {
 
   const distributeSectionPoints = (section) => {
     if (section === 'II') {
-      toast.info('Phần II dùng thang điểm Đúng/Sai trong phần cài đặt.');
+      toast.info('Phần II dùng thang điểm Đúng/Sai ở đầu phần II.');
       return;
     }
     const group = groupedQuestions.find((item) => item.section === section);
@@ -505,10 +434,7 @@ export default function ExamFormPage({ mode }) {
     }
   };
 
-  const handleImportedQuestions = (
-    importedQuestions,
-    { replace, sectionTitles: importedTitles }
-  ) => {
+  const handleImportedQuestions = (importedQuestions, { replace }) => {
     const normalized = importedQuestions.map((question) => ({
       clientId: makeClientId(),
       section: SECTIONS.includes(question.section) ? question.section : 'I',
@@ -540,16 +466,6 @@ export default function ExamFormPage({ mode }) {
       II: String(mergedTotals.II ?? 0),
       III: String(mergedTotals.III ?? 0),
     });
-    if (importedTitles) {
-      setSectionTitles((current) => {
-        const next = { ...current };
-        SECTIONS.forEach((section) => {
-          const title = String(importedTitles[section] || '').trim();
-          if (title) next[section] = title;
-        });
-        return next;
-      });
-    }
     setQuestionErrors([]);
     setActiveQuestionId(normalized[0]?.clientId || merged[0]?.clientId || null);
     setImportOpen(false);
@@ -559,33 +475,7 @@ export default function ExamFormPage({ mode }) {
   };
 
   const validateQuestions = () => {
-    const errorsByQuestion = questions.map((question) => {
-      const questionError = {};
-      if (!question.content.trim()) questionError.content = 'Vui lòng nhập nội dung câu hỏi';
-      if (question.section === 'I') {
-        const optionErrors = (question.options || []).map((option) =>
-          option.trim() ? '' : 'Không được để trống'
-        );
-        if (optionErrors.some(Boolean)) questionError.options = optionErrors;
-      }
-      if (question.section === 'II') {
-        const statements = question.statements || [];
-        if (
-          statements.length !== 4 ||
-          statements.some((statement) => !statement.content.trim())
-        ) {
-          questionError.statements = 'Vui lòng nhập đủ nội dung 4 ý';
-        }
-      }
-      if (
-        question.section === 'III' &&
-        !isValidShortAnswer((question.correctBoxes || []).join(''))
-      ) {
-        questionError.correctText = 'Đáp án ngắn không hợp lệ';
-      }
-      if (!(Number(question.points) > 0)) questionError.points = 'Điểm phải lớn hơn 0';
-      return questionError;
-    });
+    const errorsByQuestion = questions.map(validateQuestionDraft);
     setQuestionErrors(errorsByQuestion);
     const firstIndex = errorsByQuestion.findIndex((error) => Object.keys(error).length > 0);
     if (firstIndex !== -1) {
@@ -633,38 +523,8 @@ export default function ExamFormPage({ mode }) {
         shuffleOptions: Boolean(values.shuffleOptions),
         showScore: Boolean(values.showScore),
         trueFalseScores: scoreValues,
-        sectionTitles,
-        questions: questions.map((question) => {
-          const base = {
-            id: question.remoteId || undefined,
-            section: question.section,
-            content: question.content.trim(),
-            points:
-              question.section === 'II'
-                ? scoreValues[3]
-                : Number(question.points),
-          };
-          if (question.section === 'I') {
-            return {
-              ...base,
-              options: (question.options || []).map((option) => option.trim()),
-              correctOption: Number(question.correctOption),
-            };
-          }
-          if (question.section === 'II') {
-            return {
-              ...base,
-              statements: (question.statements || []).map((statement) => ({
-                content: statement.content.trim(),
-                correct: Boolean(statement.correct),
-              })),
-            };
-          }
-          return {
-            ...base,
-            correctText: (question.correctBoxes || []).join(''),
-          };
-        }),
+        sectionTitles: SECTION_TITLES,
+        questions: questions.map((question) => toQuestionPayload(question, scoreValues)),
       };
 
       const response = isEdit
@@ -730,10 +590,7 @@ export default function ExamFormPage({ mode }) {
             <div key={group.section} className="mb-3 last:mb-0">
               <div className="mb-1.5 flex items-center justify-between gap-2 px-1">
                 <p className="truncate text-[11px] font-bold uppercase tracking-wide text-slate-500">
-                  Phần {group.section}
-                  {sectionTitles[group.section]
-                    ? ` - ${sectionTitles[group.section]}`
-                    : ''}
+                  Phần {group.section} - {SECTION_TITLES[group.section]}
                 </p>
                 <span className="text-[10px] text-slate-400">{group.items.length}</span>
               </div>
@@ -781,7 +638,35 @@ export default function ExamFormPage({ mode }) {
           </div>
         ) : null}
 
-        <div className="mb-5 flex w-full rounded-xl border border-slate-200 bg-white p-1 sm:w-fit">
+        <div
+          role="tablist"
+          aria-label="Khu vực đề thi"
+          className="mb-5 flex w-full rounded-xl border border-slate-200 bg-white p-1 sm:w-fit"
+        >
+          <button
+            type="button"
+            role="tab"
+            aria-selected={activeTab === 'settings'}
+            onClick={() => setActiveTab('settings')}
+            className={
+              activeTab === 'settings'
+                ? 'flex flex-1 items-center justify-center gap-2 rounded-lg bg-navy-950 px-4 py-2.5 text-sm font-semibold text-white sm:flex-none'
+                : 'flex flex-1 items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-medium text-slate-600 transition hover:bg-slate-50 sm:flex-none'
+            }
+          >
+            <Settings2 className="h-4 w-4" />
+            Cấu hình
+            {!setupComplete ? (
+              <span
+                className={
+                  activeTab === 'settings'
+                    ? 'h-1.5 w-1.5 rounded-full bg-amber-300'
+                    : 'h-1.5 w-1.5 rounded-full bg-amber-500'
+                }
+                title="Chưa hoàn tất thông tin đề thi"
+              />
+            ) : null}
+          </button>
           <button
             type="button"
             role="tab"
@@ -804,31 +689,6 @@ export default function ExamFormPage({ mode }) {
             >
               {questions.length}
             </span>
-          </button>
-          <button
-            type="button"
-            role="tab"
-            aria-selected={activeTab === 'settings'}
-            onClick={() => setActiveTab('settings')}
-            className={
-              activeTab === 'settings'
-                ? 'flex flex-1 items-center justify-center gap-2 rounded-lg bg-navy-950 px-4 py-2.5 text-sm font-semibold text-white sm:flex-none'
-                : 'flex flex-1 items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-medium text-slate-600 transition hover:bg-slate-50 sm:flex-none'
-            }
-          >
-            <Settings2 className="h-4 w-4" />
-            <span className="hidden sm:inline">Thông tin & cài đặt</span>
-            <span className="sm:hidden">Thiết lập</span>
-            {!setupComplete ? (
-              <span
-                className={
-                  activeTab === 'settings'
-                    ? 'h-1.5 w-1.5 rounded-full bg-amber-300'
-                    : 'h-1.5 w-1.5 rounded-full bg-amber-500'
-                }
-                title="Chưa hoàn tất thông tin đề thi"
-              />
-            ) : null}
           </button>
         </div>
 
@@ -874,34 +734,39 @@ export default function ExamFormPage({ mode }) {
                       <div className="flex flex-col gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2.5 shadow-sm sm:flex-row sm:items-center sm:justify-between sm:px-4">
                         <div className="flex min-w-0 flex-1 items-center gap-3">
                           <div className="min-w-0 flex-1">
-                            <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">
-                              Phần {group.section}
+                            <p className="truncate text-sm font-semibold text-slate-900">
+                              Phần {group.section} - {SECTION_TITLES[group.section]}
                             </p>
-                            <input
-                              type="text"
-                              value={sectionTitles[group.section]}
-                              maxLength={120}
-                              onChange={(event) =>
-                                setSectionTitles((current) => ({
-                                  ...current,
-                                  [group.section]: event.target.value,
-                                }))
-                              }
-                              placeholder="Nhập tên phần (không bắt buộc)"
-                              aria-label={`Tên phần ${group.section}`}
-                              className="mt-0.5 w-full border-0 bg-transparent p-0 text-sm font-semibold text-slate-900 placeholder:font-normal placeholder:text-slate-400 focus:outline-none focus:ring-0"
-                            />
                           </div>
                         </div>
                         <div className="flex flex-wrap items-center gap-2 self-end sm:self-auto">
                           {group.section === 'II' ? (
-                            <button
-                              type="button"
-                              onClick={() => setActiveTab('settings')}
-                              className="rounded-lg border border-brand-100 bg-brand-50 px-2 py-1 text-[10px] font-semibold text-brand-700 transition hover:border-brand-200 hover:bg-brand-100"
-                            >
-                              Cấu hình
-                            </button>
+                            <div className="flex items-end gap-1.5 rounded-lg border border-slate-200 bg-slate-50 px-2 py-1">
+                              <span className="pb-1 text-[10px] font-medium whitespace-nowrap text-slate-500">
+                                Điểm Đ/S
+                              </span>
+                              {['1 ý', '2 ý', '3 ý', '4 ý'].map((label, index) => (
+                                <label
+                                  key={label}
+                                  className="flex flex-col items-center gap-0.5"
+                                >
+                                  <span className="text-[10px] leading-none text-slate-600">
+                                    {label}
+                                  </span>
+                                  <input
+                                    type="number"
+                                    min="0"
+                                    step="0.05"
+                                    value={trueFalseScores[index]}
+                                    onChange={(event) =>
+                                      updateTrueFalseScore(index, event.target.value)
+                                    }
+                                    aria-label={`Điểm khi ${label} đúng ở Phần II`}
+                                    className="h-6 w-12 rounded border border-slate-200 bg-white px-1 text-center text-xs font-semibold text-slate-800 focus:border-brand-400 focus:outline-none"
+                                  />
+                                </label>
+                              ))}
+                            </div>
                           ) : (
                             <div className="flex items-center gap-1 rounded-lg border border-slate-200 bg-slate-50 px-2 py-1">
                               <label
@@ -1511,40 +1376,6 @@ export default function ExamFormPage({ mode }) {
                 </FormField>
               </div>
 
-              <div className="mt-4 border-t border-slate-100 pt-4">
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">
-                    Thang điểm Phần II — Đúng/Sai
-                  </p>
-                  <p className="text-[11px] text-slate-400">
-                    Mức 4/4 là điểm tối đa của mỗi câu
-                  </p>
-                </div>
-                <div className="mt-2 grid grid-cols-2 gap-1.5 sm:grid-cols-4">
-                  {['1 ý', '2 ý', '3 ý', '4 ý'].map((label, index) => (
-                    <label
-                      key={label}
-                      className="flex items-center justify-between gap-1.5 rounded-lg border border-slate-200 bg-white px-2 py-1.5"
-                    >
-                      <span className="shrink-0 text-[10px] font-medium text-slate-500">
-                        {label}
-                      </span>
-                      <input
-                        type="number"
-                        min="0"
-                        step="0.05"
-                        value={trueFalseScores[index]}
-                        onChange={(event) =>
-                          updateTrueFalseScore(index, event.target.value)
-                        }
-                        aria-label={`Điểm khi ${label} đúng ở Phần II`}
-                        className="h-6 w-14 min-w-0 rounded border border-slate-200 bg-slate-50 px-1.5 text-right text-xs font-semibold text-slate-800 focus:border-brand-400 focus:outline-none"
-                      />
-                    </label>
-                  ))}
-                </div>
-              </div>
-
               <div className="border-t border-slate-100 pt-4">
                 <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-slate-400">
                   Tùy chọn ca thi
@@ -1585,9 +1416,7 @@ export default function ExamFormPage({ mode }) {
                 {questions.length} câu · {totalPoints} điểm
               </p>
               <p className="truncate text-[11px] text-slate-500">
-                {selectedClassLabel === 'Chưa gán lớp'
-                  ? 'Chưa thiết lập lớp học'
-                  : selectedClassLabel}
+                {watchedTitle?.trim() || 'Đề thi chưa có tên'} · {selectedClassLabel}
               </p>
             </div>
             <div className="flex shrink-0 items-center gap-2">

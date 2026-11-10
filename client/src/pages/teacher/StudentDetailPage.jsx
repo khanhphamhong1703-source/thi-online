@@ -82,40 +82,13 @@ export default function StudentDetailPage() {
   const backPath = classId
     ? `/teacher/classes/${classId}/students`
     : '/teacher/classes';
-  const currentClass = student.classes?.find((item) => item.id === classId);
 
   return (
     <div>
       <PageHeader
         backTo={backPath}
         backLabel={classId ? 'Quay lại danh sách học sinh' : 'Quay lại danh sách lớp'}
-        eyebrow={currentClass ? `${currentClass.classCode} · ${currentClass.schoolYear}` : 'Hồ sơ học sinh'}
         title={student.fullName}
-        description={`Mã học sinh ${student.studentCode} · Hồ sơ dùng chung toàn hệ thống`}
-        actions={
-          <>
-            {classId ? (
-              <Button
-                variant="danger"
-                icon={Trash2}
-                onClick={() => setRemoveOpen(true)}
-              >
-                Xóa khỏi lớp
-              </Button>
-            ) : null}
-            <Button
-              variant="secondary"
-              icon={Edit3}
-              onClick={() =>
-                navigate(
-                  `/teacher/students/${id}/edit${classId ? `?classId=${classId}` : ''}`
-                )
-              }
-            >
-              Chỉnh sửa
-            </Button>
-          </>
-        }
       />
 
       <div className="grid gap-6 lg:grid-cols-3">
@@ -123,13 +96,37 @@ export default function StudentDetailPage() {
           <section className="surface overflow-hidden">
             <div className="h-20 bg-gradient-to-r from-brand-800 via-brand-700 to-blue-600" />
             <div className="px-5 pb-6 sm:px-6">
-              <div className="-mt-5 flex items-end gap-4">
-                <div className="flex h-20 w-20 items-center justify-center rounded-2xl border-4 border-white bg-brand-50 text-xl font-bold text-brand-700 shadow-sm">
-                  {getInitials(student.fullName)}
+              <div className="-mt-5 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+                <div className="flex items-end gap-4">
+                  <div className="flex h-20 w-20 items-center justify-center rounded-2xl border-4 border-white bg-brand-50 text-xl font-bold text-brand-700 shadow-sm">
+                    {getInitials(student.fullName)}
+                  </div>
+                  <div className="pb-1">
+                    <h2 className="text-xl font-bold text-slate-900">{student.fullName}</h2>
+                    <p className="text-sm text-slate-500">{student.studentCode}</p>
+                  </div>
                 </div>
-                <div className="pb-1">
-                  <h2 className="text-xl font-bold text-slate-900">{student.fullName}</h2>
-                  <p className="text-sm text-slate-500">{student.studentCode}</p>
+                <div className="flex flex-wrap items-center gap-2 pb-1">
+                  {classId ? (
+                    <Button
+                      variant="ghost-danger"
+                      icon={Trash2}
+                      onClick={() => setRemoveOpen(true)}
+                    >
+                      Xóa khỏi lớp
+                    </Button>
+                  ) : null}
+                  <Button
+                    variant="secondary"
+                    icon={Edit3}
+                    onClick={() =>
+                      navigate(
+                        `/teacher/students/${id}/edit${classId ? `?classId=${classId}` : ''}`
+                      )
+                    }
+                  >
+                    Chỉnh sửa
+                  </Button>
                 </div>
               </div>
 

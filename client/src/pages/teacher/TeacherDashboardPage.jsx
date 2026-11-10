@@ -4,14 +4,12 @@ import {
   ArrowRight,
   BookOpen,
   CalendarPlus,
-  ClipboardList,
   GraduationCap,
   Plus,
   Users,
 } from 'lucide-react';
 import { classApi } from '../../api/classes';
 import { getErrorMessage } from '../../api/client';
-import { useAuth } from '../../contexts/AuthContext';
 import { useToast } from '../../contexts/ToastContext';
 import { formatDate } from '../../utils/format';
 import PageHeader from '../../components/PageHeader';
@@ -22,7 +20,6 @@ import Badge from '../../components/Badge';
 import EmptyState from '../../components/EmptyState';
 
 export default function TeacherDashboardPage() {
-  const { user } = useAuth();
   const toast = useToast();
   const [dashboard, setDashboard] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -73,29 +70,7 @@ export default function TeacherDashboardPage() {
 
   return (
     <div>
-      <PageHeader
-        eyebrow="Tổng quan"
-        title={`Chào ${user?.fullName || 'giáo viên'}`}
-        description="Nắm nhanh lớp học, học sinh và tổ chức các ca thi trực tuyến."
-        actions={
-          <div className="flex flex-wrap gap-2">
-            <Link
-              to="/teacher/exams/new"
-              className="focus-ring inline-flex h-10 items-center gap-2 rounded-lg bg-brand-600 px-4 text-sm font-semibold text-white shadow-sm shadow-brand-600/20 transition hover:bg-brand-700"
-            >
-              <ClipboardList className="h-4 w-4" />
-              Tạo đề thi
-            </Link>
-            <Link
-              to="/teacher/classes/new"
-              className="focus-ring inline-flex h-10 items-center gap-2 rounded-lg border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
-            >
-              <Plus className="h-4 w-4" />
-              Tạo lớp học
-            </Link>
-          </div>
-        }
-      />
+      <PageHeader title="Tổng quan" />
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
         <StatCard

@@ -18,6 +18,7 @@ import {
   X,
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
+import { PageChromeContext } from '../contexts/PageChromeContext';
 import { useToast } from '../contexts/ToastContext';
 import { cx, getInitials } from '../utils/format';
 
@@ -49,6 +50,7 @@ export default function AppLayout({ role }) {
   const location = useLocation();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
+  const [pageChrome, setPageChrome] = useState(null);
 
   const navItems = NAVIGATION[role] || [];
   const homePath = role === 'ADMIN' ? '/admin' : '/teacher';
@@ -63,15 +65,24 @@ export default function AppLayout({ role }) {
   const activeChild = activeNavItem?.children?.find((child) =>
     child.end ? location.pathname === child.to : location.pathname.startsWith(child.to)
   );
+  const isNavRoot = Boolean(
+    activeNavItem &&
+    (activeNavItem.end
+      ? location.pathname === activeNavItem.to
+      : location.pathname === activeNavItem.to ||
+      location.pathname === `${activeNavItem.to}/`)
+  );
   const currentLabel =
-    (activeNavItem && activeChild
-      ? `${activeNavItem.label} · ${activeChild.label}`
-      : activeNavItem?.label) ||
+    (activeNavItem && !isNavRoot
+      ? activeChild
+        ? `${activeNavItem.label} · ${activeChild.label}`
+        : activeNavItem.label
+      : null) ||
     extraLabels.find((item) => location.pathname.startsWith(item.prefix))?.label ||
-    'Không gian làm việc';
+    (role === 'ADMIN' ? 'Quản trị hệ thống' : 'Không gian giáo viên');
   const examEditMatch =
     role === 'TEACHER'
-      ? location.pathname.match(/^\/teacher\/exams\/([^/]+)\/edit\/?$/)
+      ? location.pathname.match(/^\/teacher\/exams\/([^/]+)\/(edit|questions)\/?$/)
       : null;
   const isExamCreate = role === 'TEACHER' && /^\/teacher\/exams\/new\/?$/.test(location.pathname);
   const isExamForm = Boolean(examEditMatch || isExamCreate);
@@ -166,20 +177,6 @@ export default function AppLayout({ role }) {
         })}
       </nav>
 
-      <div className="m-3 rounded-xl border border-white/10 bg-white/[0.04] p-3">
-        <div className="flex items-center gap-2 text-xs font-medium text-slate-300">
-          {role === 'ADMIN' ? (
-            <ShieldCheck className="h-4 w-4 text-brand-400" />
-          ) : (
-            <BookOpen className="h-4 w-4 text-brand-400" />
-          )}
-          {role === 'ADMIN' ? 'Quyền quản trị viên' : 'Quyền giáo viên'}
-        </div>
-        <p className="mt-1.5 text-[11px] leading-4 text-slate-500">
-          Dữ liệu hiển thị theo tài khoản đang đăng nhập.
-        </p>
-      </div>
-
       <div className="border-t border-white/10 p-3">
         <div className="flex items-center gap-3 rounded-xl px-2 py-2">
           <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-brand-500/20 text-xs font-bold text-brand-200 ring-1 ring-brand-400/30">
@@ -260,15 +257,26 @@ export default function AppLayout({ role }) {
                   <ArrowLeft className="h-4 w-4" />
                 </Link>
                 <div className="min-w-0">
-                  <p className="truncate text-sm font-semibold text-slate-800">{examFormTitle}</p>
+                  <h1 className="truncate text-sm font-semibold text-slate-800">{examFormTitle}</h1>
                 </div>
               </div>
             ) : (
-              <div>
-                <p className="text-[11px] font-medium uppercase tracking-wider text-slate-400">
-                  {role === 'ADMIN' ? 'Admin' : 'Giáo viên'}
-                </p>
-                <p className="text-sm font-semibold text-slate-800">{currentLabel}</p>
+              <div className="flex min-w-0 items-center gap-2">
+                {pageChrome?.backTo ? (
+                  <Link
+                    to={pageChrome.backTo}
+                    className="focus-ring flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-500 transition hover:bg-slate-100 hover:text-slate-800"
+                    aria-label={pageChrome.backLabel}
+                    title={pageChrome.backLabel}
+                  >
+                    <ArrowLeft className="h-4 w-4" />
+                  </Link>
+                ) : null}
+                <div className="min-w-0">
+                  <h1 className="truncate text-base font-semibold text-slate-800">
+                    {pageChrome?.title || currentLabel}
+                  </h1>
+                </div>
               </div>
             )}
           </div>
@@ -276,9 +284,7 @@ export default function AppLayout({ role }) {
           <div className="flex items-center gap-3">
             <div className="hidden text-right sm:block">
               <p className="text-sm font-semibold leading-5 text-slate-800">{user?.fullName}</p>
-              <p className="text-xs text-slate-500">
-                {role === 'ADMIN' ? 'Quản trị viên' : 'Giáo viên'}
-              </p>
+              <p className="text-xs text-slate-500">@{user?.username}</p>
             </div>
             <div className="flex h-9 w-9 items-center justify-center rounded-full bg-brand-50 text-xs font-bold text-brand-700 ring-1 ring-brand-100">
               {getInitials(user?.fullName)}
@@ -286,15 +292,24 @@ export default function AppLayout({ role }) {
           </div>
         </header>
 
-        <div className="min-h-0 flex-1 overflow-y-auto">
-          <main className="mx-auto w-full max-w-7xl px-4 py-6 sm:px-6 sm:py-8">
-            <Outlet />
+        <div
+          className={
+            pageChrome?.fill
+              ? 'flex min-h-0 flex-1 flex-col overflow-hidden'
+              : 'min-h-0 flex-1 overflow-y-auto'
+          }
+        >
+          <main
+            className={
+              pageChrome?.fill
+                ? 'mx-auto flex min-h-0 w-full max-w-7xl flex-1 flex-col px-2 py-3 sm:px-4 sm:py-4'
+                : 'mx-auto w-full max-w-7xl px-2 py-3 sm:px-4 sm:py-4'
+            }
+          >
+            <PageChromeContext.Provider value={setPageChrome}>
+              <Outlet />
+            </PageChromeContext.Provider>
           </main>
-
-          <footer className="mx-auto flex w-full max-w-7xl items-center justify-between px-4 pb-6 text-xs text-slate-400 sm:px-6">
-            <span>ViExam · Quản lý lớp học và đề thi trực tuyến</span>
-            <span className="hidden sm:inline">Năm học hiệu quả</span>
-          </footer>
         </div>
       </div>
     </div>

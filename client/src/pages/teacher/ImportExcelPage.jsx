@@ -196,9 +196,7 @@ export default function ImportExcelPage() {
       <PageHeader
         backTo={`/teacher/classes/${classId}/students`}
         backLabel="Quay lại danh sách học sinh"
-        eyebrow={`${classroom.classCode} · ${classroom.schoolYear}`}
         title="Import danh sách học sinh"
-        description={`Thêm hàng loạt học sinh vào lớp ${classroom.name} từ file Excel, có kiểm tra dữ liệu trước khi lưu.`}
       />
 
       <div className="mb-6 flex items-center gap-2">

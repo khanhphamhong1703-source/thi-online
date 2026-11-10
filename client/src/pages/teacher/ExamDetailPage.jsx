@@ -3,12 +3,8 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import {
   AlertTriangle,
   BarChart3,
-  CalendarDays,
-  CheckCircle2,
-  Clock3,
   Copy,
   Edit3,
-  Eye,
   FileText,
   LockKeyhole,
   Presentation,
@@ -16,13 +12,12 @@ import {
   Shuffle,
   Trash2,
   Trophy,
-  Users,
 } from 'lucide-react';
 import { examApi } from '../../api/exams';
 import { getErrorMessage } from '../../api/client';
 import { useToast } from '../../contexts/ToastContext';
 import { formatDateTime } from '../../utils/format';
-import { getExamDisplayStatus } from '../../utils/exam';
+import { SECTION_TITLES, getExamDisplayStatus } from '../../utils/exam';
 import PageHeader from '../../components/PageHeader';
 import LoadingState from '../../components/LoadingState';
 import Button from '../../components/Button';
@@ -67,6 +62,19 @@ export default function ExamDetailPage() {
     }
   };
 
+  const handlePresent = () => {
+    const presentation = window.open(
+      `/teacher/present/${id}`,
+      `viexam-present-${id}`,
+      'popup=yes,width=1280,height=800'
+    );
+    if (!presentation) {
+      toast.error('Trình duyệt đã chặn cửa sổ trình chiếu. Hãy cho phép pop-up rồi thử lại.');
+      return;
+    }
+    presentation.focus();
+  };
+
   const handleAction = async () => {
     if (!confirmType) return;
     setActionLoading(true);
@@ -109,9 +117,27 @@ export default function ExamDetailPage() {
 
   const statusMeta = getExamDisplayStatus(exam);
   const examClasses = exam.classes?.length ? exam.classes : [];
-  const examClassLabel = examClasses.length
-    ? examClasses.map((classroom) => classroom.name).join(', ')
-    : exam.class?.name || 'Chưa gán lớp';
+  const activeClassCount = examClasses.filter((classroom) => !classroom.isArchived).length;
+  const publishBlockReason = !examClasses.length
+    ? 'Đề chưa được gán lớp nên chưa thể công bố. Bấm “Chỉnh sửa” để chọn ít nhất một lớp cho đề.'
+    : !activeClassCount
+      ? 'Các lớp của đề đang bị lưu trữ nên chưa thể công bố. Bấm “Chỉnh sửa” để chọn lớp đang hoạt động.'
+      : new Date(exam.closeAt).getTime() <= Date.now()
+        ? 'Thời gian kết thúc của đề đã qua nên chưa thể công bố. Bấm “Chỉnh sửa” để đặt lại thời gian.'
+        : '';
+  const sectionSummary = ['I', 'II', 'III']
+    .map((section) => {
+      const questions = (exam.questions || []).filter(
+        (question) => (question.section || 'I') === section
+      );
+      return {
+        section,
+        title: SECTION_TITLES[section],
+        count: questions.length,
+        points: questions.reduce((sum, question) => sum + (Number(question.points) || 0), 0),
+      };
+    })
+    .filter((item) => item.count > 0);
   const confirmConfig = {
     publish: {
       title: 'Công bố đề thi?',
@@ -140,70 +166,18 @@ export default function ExamDetailPage() {
       <PageHeader
         backTo="/teacher/exams"
         backLabel="Quay lại danh sách đề thi"
-        eyebrow="Chi tiết đề thi"
         title={exam.title}
-        description={`${exam.subject} · ${examClassLabel}`}
-        actions={
-          <>
-            <Button
-              variant="secondary"
-              icon={Presentation}
-              onClick={() => navigate(`/teacher/present/${id}`)}
-            >
-              Chiếu mã
-            </Button>
-            <Button variant="secondary" icon={BarChart3} onClick={() => navigate(`/teacher/exams/${id}/results`)}>
-              Kết quả
-            </Button>
-            <Button variant="secondary" icon={Edit3} onClick={() => navigate(`/teacher/exams/${id}/edit`)}>
-              Chỉnh sửa
-            </Button>
-            {exam.status === 'DRAFT' ? (
-              <Button
-                icon={Send}
-                onClick={() => setConfirmType('publish')}
-                disabled={examClasses.length === 0}
-                title={
-                  examClasses.length === 0
-                    ? 'Gán ít nhất một lớp trước khi công bố'
-                    : undefined
-                }
-              >
-                Công bố
-              </Button>
-            ) : null}
-            {exam.status === 'PUBLISHED' ? (
-              <Button variant="danger" icon={LockKeyhole} onClick={() => setConfirmType('close')}>
-                Đóng ca thi
-              </Button>
-            ) : null}
-          </>
-        }
       />
 
-      <div className="mb-4 flex flex-wrap items-center gap-2">
-        <Badge variant={statusMeta.variant}>{statusMeta.label}</Badge>
-        {exam.status === 'PUBLISHED' && exam.phase === 'OPEN' ? (
-          <Link to={`/exam/${exam.id}`} target="_blank" className="inline-flex items-center gap-1 text-xs font-semibold text-brand-600 hover:underline">
-            <Eye className="h-3.5 w-3.5" /> Xem như học sinh
-          </Link>
-        ) : null}
-        {exam.status === 'DRAFT' ? (
-          <span className="text-xs text-slate-500">
-            Đề nháp chỉ hiển thị với giáo viên.
-          </span>
-        ) : null}
-      </div>
-
-      <div className="grid gap-6 lg:grid-cols-3">
-        <div className="space-y-6 lg:col-span-2">
+      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_300px]">
+        <div className="min-w-0 space-y-4">
           <section className="surface p-5 sm:p-6">
-            <div className="flex flex-col gap-4 border-b border-slate-100 pb-5 sm:flex-row sm:items-center sm:justify-between">
-              <div className="flex items-center gap-4">
-                <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-blue-50 text-blue-600">
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex min-w-0 items-start gap-4">
+                <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-blue-50 text-blue-600">
                   <FileText className="h-7 w-7" />
                 </div>
-                <div>
+                <div className="min-w-0">
                   <p className="text-xs font-medium uppercase tracking-wide text-slate-400">
                     Mã ca thi
                   </p>
@@ -220,183 +194,112 @@ export default function ExamDetailPage() {
                       <Copy className="h-4 w-4" />
                     </button>
                   </div>
+                  <p className="mt-1 text-xs leading-5 text-slate-500">
+                    Gửi mã này cùng mã học sinh để học sinh vào phòng thi.
+                  </p>
                 </div>
               </div>
-              <p className="max-w-xs text-xs leading-5 text-slate-500">
-                Gửi mã này cho học sinh cùng với mã học sinh để các em vào phòng thi.
-              </p>
+              <Badge variant={statusMeta.variant}>{statusMeta.label}</Badge>
             </div>
 
-            <dl className="mt-5 grid gap-5 sm:grid-cols-2">
-              <div>
-                <dt className="text-xs font-medium uppercase tracking-wide text-slate-400">Lớp học</dt>
-                <dd className="mt-1.5 space-y-1 text-sm font-medium text-slate-800">
+            <dl className="mt-6 grid gap-x-6 gap-y-5 border-t border-slate-100 pt-5 sm:grid-cols-2">
+              <div className="sm:col-span-2">
+                <dt className="text-xs font-medium uppercase tracking-wide text-slate-400">
+                  Lớp học
+                </dt>
+                <dd className="mt-2 flex flex-wrap gap-1.5">
                   {examClasses.length ? (
                     examClasses.map((classroom) => (
-                      <p key={classroom.id} className="flex items-center gap-2">
-                        <Users className="h-4 w-4 shrink-0 text-slate-400" />
-                        {classroom.name} ({classroom.classCode})
-                        {classroom.isArchived ? (
-                          <Badge variant="warning">Đã lưu trữ</Badge>
-                        ) : null}
-                      </p>
+                      <span
+                        key={classroom.id}
+                        className={
+                          classroom.isArchived
+                            ? 'inline-flex items-center gap-1.5 rounded-md bg-amber-50 px-2 py-1 text-xs font-semibold text-amber-700 ring-1 ring-inset ring-amber-600/20'
+                            : 'inline-flex items-center gap-1.5 rounded-md bg-slate-100 px-2 py-1 text-xs font-semibold text-slate-700'
+                        }
+                      >
+                        {classroom.name}
+                        <span className="font-normal text-slate-600">{classroom.classCode}</span>
+                        {classroom.isArchived ? <span className="font-normal">Đã lưu trữ</span> : null}
+                      </span>
                     ))
+                  ) : exam.class ? (
+                    <span className="inline-flex items-center gap-1.5 rounded-md bg-slate-100 px-2 py-1 text-xs font-semibold text-slate-700">
+                      {exam.class.name}
+                      <span className="font-normal text-slate-600">{exam.class.classCode}</span>
+                    </span>
                   ) : (
-                    <p className="flex items-center gap-2">
-                      <Users className="h-4 w-4 text-slate-400" />
-                      {exam.class
-                        ? `${exam.class.name} (${exam.class.classCode})`
-                        : 'Chưa gán lớp'}
-                    </p>
+                    <span className="text-sm text-slate-500">Chưa gán lớp</span>
                   )}
+                </dd>
+              </div>
+              <div>
+                <dt className="text-xs font-medium uppercase tracking-wide text-slate-400">
+                  Môn học
+                </dt>
+                <dd className="mt-1.5 text-sm font-medium text-slate-800">
+                  {exam.subject || 'Chưa cập nhật'}
                 </dd>
               </div>
               <div>
                 <dt className="text-xs font-medium uppercase tracking-wide text-slate-400">
                   Thời lượng
                 </dt>
-                <dd className="mt-1.5 flex items-center gap-2 text-sm font-medium text-slate-800">
-                  <Clock3 className="h-4 w-4 text-slate-400" /> {exam.durationMinutes} phút
+                <dd className="mt-1.5 text-sm font-medium text-slate-800">
+                  {exam.durationMinutes} phút
                 </dd>
               </div>
               <div>
                 <dt className="text-xs font-medium uppercase tracking-wide text-slate-400">
-                  Thời gian mở
+                  Số lượt làm tối đa
                 </dt>
-                <dd className="mt-1.5 flex items-center gap-2 text-sm font-medium text-slate-800">
-                  <CalendarDays className="h-4 w-4 text-slate-400" /> {formatDateTime(exam.openAt)}
+                <dd className="mt-1.5 text-sm font-medium text-slate-800">
+                  {exam.maxAttempts === 0 ? 'Không giới hạn' : exam.maxAttempts}
                 </dd>
               </div>
-              <div>
+              <div className="sm:col-span-2">
                 <dt className="text-xs font-medium uppercase tracking-wide text-slate-400">
-                  Thời gian đóng
+                  Thời gian thi
                 </dt>
-                <dd className="mt-1.5 flex items-center gap-2 text-sm font-medium text-slate-800">
-                  <CalendarDays className="h-4 w-4 text-slate-400" /> {formatDateTime(exam.closeAt)}
+                <dd className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm font-medium text-slate-800">
+                  {formatDateTime(exam.openAt)}
+                  <span className="text-slate-400">→</span>
+                  {formatDateTime(exam.closeAt)}
                 </dd>
               </div>
+              {exam.description ? (
+                <div className="sm:col-span-2">
+                  <dt className="text-xs font-medium uppercase tracking-wide text-slate-400">
+                    Mô tả
+                  </dt>
+                  <dd className="mt-2 text-sm leading-6 text-slate-600">{exam.description}</dd>
+                </div>
+              ) : null}
             </dl>
-
-            <div className="mt-6 border-t border-slate-100 pt-5">
-              <p className="text-xs font-medium uppercase tracking-wide text-slate-400">Mô tả</p>
-              <p className="mt-2 text-sm leading-6 text-slate-600">
-                {exam.description || 'Đề thi chưa có mô tả.'}
-              </p>
-            </div>
           </section>
 
           <section className="surface overflow-hidden">
-            <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4 sm:px-6">
-              <div>
-                <h2 className="text-sm font-semibold text-slate-900">Câu hỏi</h2>
-                <p className="mt-0.5 text-xs text-slate-500">
-                  {exam.questionCount} câu · {exam.totalPoints} điểm
-                </p>
-              </div>
-              <Badge variant="info">{exam.questions?.length || 0} câu</Badge>
-            </div>
-
-            <div className="divide-y divide-slate-100">
-              {exam.questions?.map((question, index) => (
-                <article key={question.id} className="p-5 sm:p-6">
-                  <div className="flex items-start gap-3">
-                    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-navy-950 text-xs font-bold text-white">
-                      {index + 1}
-                    </span>
-                    <div className="min-w-0 flex-1">
-                      <div className="flex flex-wrap items-start justify-between gap-2">
-                        <p className="font-medium leading-6 text-slate-900">{question.content}</p>
-                        <div className="flex items-center gap-2">
-                          <Badge variant="neutral">
-                            Phần {question.section || 'I'}
-                            {exam.sectionTitles?.[question.section || 'I']
-                              ? ` - ${exam.sectionTitles[question.section || 'I']}`
-                              : ''}
-                          </Badge>
-                          <Badge variant="neutral">{question.points} điểm</Badge>
-                        </div>
-                      </div>
-                      {question.section === 'II' ? (
-                        <div className="mt-3 space-y-2">
-                          {(question.statements || []).map((statement, statementIndex) => (
-                            <div
-                              key={statementIndex}
-                              className={
-                                statement.correct
-                                  ? 'flex items-start gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800'
-                                  : 'flex items-start gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-600'
-                              }
-                            >
-                              <span className="font-bold">{statementIndex + 1}.</span>
-                              <span className="flex-1">{statement.content}</span>
-                              <Badge variant={statement.correct ? 'active' : 'neutral'}>
-                                {statement.correct ? 'Đúng' : 'Sai'}
-                              </Badge>
-                            </div>
-                          ))}
-                        </div>
-                      ) : question.section === 'III' ? (
-                        <div className="mt-3 flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800">
-                          <span className="font-semibold">Đáp án đúng:</span>
-                          <span className="font-mono text-base font-bold">
-                            {question.correctText || '—'}
-                          </span>
-                        </div>
-                      ) : (
-                        <div className="mt-3 grid gap-2 sm:grid-cols-2">
-                          {question.options.map((option, optionIndex) => (
-                            <div
-                              key={optionIndex}
-                              className={
-                                optionIndex === question.correctOption
-                                  ? 'flex items-start gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800'
-                                  : 'flex items-start gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-600'
-                              }
-                            >
-                              <span className="font-bold">{String.fromCharCode(65 + optionIndex)}.</span>
-                              <span className="flex-1">{option}</span>
-                              {optionIndex === question.correctOption ? (
-                                <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" />
-                              ) : null}
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </article>
-              ))}
-            </div>
-          </section>
-        </div>
-
-        <aside className="space-y-4">
-          <div className="surface overflow-hidden">
             <div className="bg-navy-950 p-5 text-white">
-              <p className="text-xs font-medium uppercase tracking-wide text-slate-400">Tổng quan</p>
-              <div className="mt-4 grid grid-cols-2 gap-4">
+              <p className="text-xs font-medium uppercase tracking-wide text-slate-400">
+                Tổng quan
+              </p>
+              <div className="mt-3 grid grid-cols-3 gap-4">
                 <div>
-                  <p className="text-2xl font-bold">{exam.questionCount}</p>
                   <p className="text-xs text-slate-400">Câu hỏi</p>
+                  <p className="mt-1 text-2xl font-bold">{exam.questionCount}</p>
                 </div>
                 <div>
-                  <p className="text-2xl font-bold">{exam.totalPoints}</p>
                   <p className="text-xs text-slate-400">Điểm tối đa</p>
+                  <p className="mt-1 text-2xl font-bold">{exam.totalPoints}</p>
                 </div>
                 <div>
-                  <p className={`font-bold ${exam.maxAttempts === 0 ? 'text-lg' : 'text-2xl'}`}>
-                    {exam.maxAttempts === 0 ? 'Không giới hạn' : exam.maxAttempts}
-                  </p>
-                  <p className="text-xs text-slate-400">Lượt làm</p>
-                </div>
-                <div>
-                  <p className="text-2xl font-bold">{exam.attemptCount || 0}</p>
                   <p className="text-xs text-slate-400">Lượt đã bắt đầu</p>
+                  <p className="mt-1 text-2xl font-bold">{exam.attemptCount || 0}</p>
                 </div>
               </div>
             </div>
-            <div className="space-y-3 p-4">
-              <div className="flex items-center justify-between text-sm">
+            <div className="grid gap-3 p-4 sm:grid-cols-3">
+              <div className="flex items-center justify-between gap-2 rounded-lg bg-slate-50 px-3 py-2 text-sm">
                 <span className="flex items-center gap-1.5 text-slate-500">
                   <Shuffle className="h-4 w-4" /> Trộn câu hỏi
                 </span>
@@ -404,7 +307,7 @@ export default function ExamDetailPage() {
                   {exam.shuffleQuestions ? 'Bật' : 'Tắt'}
                 </span>
               </div>
-              <div className="flex items-center justify-between text-sm">
+              <div className="flex items-center justify-between gap-2 rounded-lg bg-slate-50 px-3 py-2 text-sm">
                 <span className="flex items-center gap-1.5 text-slate-500">
                   <Shuffle className="h-4 w-4" /> Trộn đáp án
                 </span>
@@ -412,7 +315,7 @@ export default function ExamDetailPage() {
                   {exam.shuffleOptions ? 'Bật' : 'Tắt'}
                 </span>
               </div>
-              <div className="flex items-center justify-between text-sm">
+              <div className="flex items-center justify-between gap-2 rounded-lg bg-slate-50 px-3 py-2 text-sm">
                 <span className="flex items-center gap-1.5 text-slate-500">
                   <Trophy className="h-4 w-4" /> Công bố điểm
                 </span>
@@ -421,49 +324,132 @@ export default function ExamDetailPage() {
                 </span>
               </div>
             </div>
-          </div>
+          </section>
 
-          <div className="surface p-5">
-            <h3 className="text-sm font-semibold text-slate-900">Thao tác</h3>
+          <section className="surface overflow-hidden">
+            <div className="flex items-start justify-between gap-3 border-b border-slate-100 px-5 py-4 sm:px-6">
+              <div>
+                <h2 className="text-sm font-semibold text-slate-900">Cấu trúc đề thi</h2>
+                <p className="mt-0.5 text-xs text-slate-500">
+                  {exam.questionCount} câu · {exam.totalPoints} điểm
+                </p>
+              </div>
+            </div>
+            {sectionSummary.length ? (
+              <ul className="divide-y divide-slate-100">
+                {sectionSummary.map((item) => (
+                  <li
+                    key={item.section}
+                    className="flex items-center justify-between gap-3 px-5 py-3.5 sm:px-6"
+                  >
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium text-slate-800">
+                        Phần {item.section}
+                        {item.title ? ` - ${item.title}` : ''}
+                      </p>
+                      <p className="mt-0.5 text-xs text-slate-500">{item.count} câu</p>
+                    </div>
+                    <Badge variant="neutral">{item.points} điểm</Badge>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <div className="px-5 py-8 text-center sm:px-6">
+                <p className="text-sm font-medium text-slate-700">Đề chưa có câu hỏi</p>
+                <p className="mt-1 text-sm text-slate-500">
+                  Bấm “Chỉnh sửa” để thêm câu hỏi cho đề thi.
+                </p>
+              </div>
+            )}
+          </section>
+        </div>
+
+        <aside className="order-first space-y-4 lg:order-none">
+          <div className="surface p-4">
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+                Thao tác
+              </p>
+              <Badge variant={statusMeta.variant}>{statusMeta.label}</Badge>
+            </div>
             <div className="mt-3 space-y-2">
+              <Button
+                icon={Edit3}
+                className="w-full justify-start"
+                onClick={() => navigate(`/teacher/exams/${id}/edit`)}
+              >
+                Chỉnh sửa
+              </Button>
+              <Button
+                variant="secondary"
+                icon={Presentation}
+                className="w-full justify-start"
+                onClick={handlePresent}
+              >
+                Chiếu mã
+              </Button>
               <Button
                 variant="secondary"
                 icon={BarChart3}
                 className="w-full justify-start"
                 onClick={() => navigate(`/teacher/exams/${id}/results`)}
               >
-                Xem kết quả ({exam.attemptCount || 0})
+                Kết quả
               </Button>
               {exam.status === 'DRAFT' ? (
                 <Button
-                  variant="ghost-danger"
-                  icon={Trash2}
+                  variant="secondary"
+                  icon={Send}
                   className="w-full justify-start"
-                  onClick={() => setConfirmType('delete')}
+                  onClick={() => setConfirmType('publish')}
+                  disabled={Boolean(publishBlockReason)}
+                  title={publishBlockReason || undefined}
                 >
-                  Xóa đề nháp
+                  Công bố
+                </Button>
+              ) : null}
+              {exam.status === 'PUBLISHED' ? (
+                <Button
+                  variant="danger"
+                  icon={LockKeyhole}
+                  className="w-full justify-start"
+                  onClick={() => setConfirmType('close')}
+                >
+                  Đóng ca thi
                 </Button>
               ) : null}
             </div>
           </div>
 
-          {exam.status !== 'DRAFT' ? (
-            <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-xs leading-5 text-amber-800">
-              <div className="flex items-start gap-2">
-                <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
-                Đề đã công bố có thể được chỉnh sửa. Thay đổi chỉ áp dụng cho các lượt làm mới và
-                không thể sửa khi đang có học sinh làm bài.
-              </div>
+          <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-xs leading-5 text-amber-800">
+            <div className="flex items-start gap-2">
+              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+              {exam.status !== 'DRAFT' ? (
+                <span>
+                  Đề đã công bố có thể được chỉnh sửa. Thay đổi chỉ áp dụng cho các lượt làm mới và
+                  không thể sửa khi đang có học sinh làm bài.
+                </span>
+              ) : (
+                <span>
+                  {publishBlockReason ||
+                    'Học sinh chỉ thấy đề sau khi bạn bấm Công bố. Hãy kiểm tra kỹ nội dung trước khi công bố.'}
+                </span>
+              )}
             </div>
-          ) : (
-            <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-xs leading-5 text-amber-800">
-              <div className="flex items-start gap-2">
-                <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
-                Học sinh chỉ thấy đề sau khi bạn bấm Công bố. Hãy kiểm tra kỹ nội dung trước khi
-                công bố.
-              </div>
+          </div>
+
+          {exam.status === 'DRAFT' ? (
+            <div className="surface p-3">
+              <Button
+                variant="ghost-danger"
+                icon={Trash2}
+                className="w-full justify-start"
+                onClick={() => setConfirmType('delete')}
+              >
+                Xóa đề nháp
+              </Button>
             </div>
-          )}
+          ) : null}
         </aside>
       </div>
 

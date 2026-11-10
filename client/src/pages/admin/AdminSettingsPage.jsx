@@ -92,11 +92,7 @@ export default function AdminSettingsPage() {
 
   return (
     <div>
-      <PageHeader
-        eyebrow="Hệ thống"
-        title="Hệ thống"
-        description="Sao lưu, khôi phục và các thao tác quản trị toàn hệ thống."
-      />
+      <PageHeader title="Hệ thống" />
 
       <section className="surface max-w-3xl p-5">
         <div className="flex items-start gap-3">

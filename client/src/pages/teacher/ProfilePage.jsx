@@ -18,20 +18,7 @@ export default function ProfilePage() {
 
   return (
     <div>
-      <PageHeader
-        eyebrow="Tài khoản"
-        title="Thông tin cá nhân"
-        description="Thông tin tài khoản giáo viên do quản trị viên cấp và quản lý."
-        actions={
-          <Link
-            to="/teacher/change-password"
-            className="focus-ring inline-flex h-10 items-center gap-2 rounded-lg bg-brand-600 px-4 text-sm font-semibold text-white transition hover:bg-brand-700"
-          >
-            <KeyRound className="h-4 w-4" />
-            Đổi mật khẩu
-          </Link>
-        }
-      />
+      <PageHeader title="Thông tin cá nhân" />
 
       <div className="grid gap-6 lg:grid-cols-3">
         <section className="surface overflow-hidden lg:col-span-2">

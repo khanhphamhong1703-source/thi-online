@@ -4,7 +4,6 @@ import {
   ArrowRight,
   BookOpen,
   ClipboardList,
-  Plus,
   RefreshCcw,
   UserRound,
   Users,
@@ -12,7 +11,6 @@ import {
 import { adminDataApi } from '../../api/adminData';
 import { activityApi } from '../../api/activity';
 import { getErrorMessage } from '../../api/client';
-import { useAuth } from '../../contexts/AuthContext';
 import { formatDateTime } from '../../utils/format';
 import { ACTIVITY_STATUS, describeActivityData, getActionLabel } from '../../utils/activity';
 import PageHeader from '../../components/PageHeader';
@@ -20,7 +18,6 @@ import LoadingState from '../../components/LoadingState';
 import Badge from '../../components/Badge';
 
 export default function AdminDashboardPage() {
-  const { user } = useAuth();
   const [summary, setSummary] = useState(null);
   const [activity, setActivity] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -90,20 +87,7 @@ export default function AdminDashboardPage() {
 
   return (
     <div>
-      <PageHeader
-        eyebrow="Tổng quan"
-        title={`Chào ${user?.fullName || 'quản trị viên'}`}
-        description="Số liệu toàn hệ thống và hoạt động gần đây của giáo viên."
-        actions={
-          <Link
-            to="/admin/teachers/new"
-            className="focus-ring inline-flex h-10 items-center gap-2 rounded-lg bg-brand-600 px-4 text-sm font-semibold text-white shadow-sm shadow-brand-600/20 transition hover:bg-brand-700"
-          >
-            <Plus className="h-4 w-4" />
-            Tạo giáo viên
-          </Link>
-        }
-      />
+      <PageHeader title="Tổng quan" />
 
       {error ? (
         <div className="mb-4 flex items-center justify-between gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
@@ -123,7 +107,7 @@ export default function AdminDashboardPage() {
           <h2 className="text-sm font-semibold text-slate-900">Toàn hệ thống</h2>
           <p className="text-xs text-slate-500">Chọn một mục để mở khu vực quản lý tương ứng.</p>
         </div>
-        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
           {cards.map((card) => {
             const Icon = card.icon;
             return (
@@ -142,7 +126,9 @@ export default function AdminDashboardPage() {
                   <p className="text-2xl font-bold leading-tight text-slate-900">
                     {card.value ?? '—'}
                   </p>
-                  <p className="truncate text-[11px] text-slate-500">{card.hint}</p>
+                  <p className="hidden truncate text-[11px] text-slate-500 sm:block">
+                    {card.hint}
+                  </p>
                 </div>
                 <ArrowRight className="mt-1 h-4 w-4 shrink-0 text-slate-300 transition group-hover:translate-x-0.5 group-hover:text-brand-500" />
               </Link>

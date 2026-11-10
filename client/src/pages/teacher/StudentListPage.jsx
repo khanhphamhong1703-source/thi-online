@@ -4,12 +4,10 @@ import {
   Download,
   Edit3,
   Eye,
-  FileSpreadsheet,
   Plus,
   RefreshCcw,
   Trash2,
   Upload,
-  UserRound,
   Users,
 } from 'lucide-react';
 import { classApi } from '../../api/classes';
@@ -147,15 +145,32 @@ export default function StudentListPage() {
   const showInitialLoading = loading && students.items.length === 0;
 
   return (
-    <div>
+    <div className="flex min-h-0 flex-1 flex-col">
       <PageHeader
         backTo={`/teacher/classes/${classId}`}
         backLabel="Quay lại chi tiết lớp học"
-        eyebrow={`${classroom.classCode} · ${classroom.schoolYear}`}
         title={`Học sinh lớp ${classroom.name}`}
-        description="Quản lý danh sách học sinh, import hàng loạt và xuất dữ liệu ra Excel."
-        actions={
-          <>
+        fill
+      />
+
+      {classroom.isArchived ? (
+        <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+          Lớp học đang ở trạng thái lưu trữ. Dữ liệu học sinh vẫn được bảo toàn để tra cứu.
+        </div>
+      ) : null}
+
+      <div className="surface flex min-h-0 flex-1 flex-col overflow-hidden">
+        <div className="flex shrink-0 flex-col gap-3 border-b border-slate-100 p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5">
+          <SearchInput
+            value={searchTerm}
+            onChange={handleSearch}
+            placeholder="Tìm theo mã học sinh hoặc họ tên..."
+            className="w-full sm:max-w-sm"
+          />
+          <div className="flex flex-wrap items-center gap-2 sm:justify-end">
+            <p className="mr-auto text-sm text-slate-500 sm:mr-2">
+              {pagination ? `${pagination.total} học sinh` : 'Đang tải...'}
+            </p>
             <Button
               variant="secondary"
               icon={Download}
@@ -178,61 +193,11 @@ export default function StudentListPage() {
               <Plus className="h-4 w-4" />
               Thêm học sinh
             </Link>
-          </>
-        }
-      />
-
-      {classroom.isArchived ? (
-        <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-          Lớp học đang ở trạng thái lưu trữ. Dữ liệu học sinh vẫn được bảo toàn để tra cứu.
-        </div>
-      ) : null}
-
-      <div className="mb-4 grid gap-3 sm:grid-cols-3">
-        <div className="surface flex items-center gap-3 p-4">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-50 text-blue-600">
-            <Users className="h-5 w-5" />
           </div>
-          <div>
-            <p className="text-xl font-bold text-slate-900">{pagination?.total ?? 0}</p>
-            <p className="text-xs text-slate-500">Học sinh trong lớp</p>
-          </div>
-        </div>
-        <div className="surface flex items-center gap-3 p-4">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600">
-            <FileSpreadsheet className="h-5 w-5" />
-          </div>
-          <div>
-            <p className="text-sm font-semibold text-slate-900">Import / Export</p>
-            <p className="text-xs text-slate-500">Hỗ trợ file Excel .xlsx</p>
-          </div>
-        </div>
-        <div className="surface flex items-center gap-3 p-4">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-violet-50 text-violet-600">
-            <UserRound className="h-5 w-5" />
-          </div>
-          <div>
-            <p className="text-sm font-semibold text-slate-900">Hồ sơ dùng chung</p>
-            <p className="text-xs text-slate-500">Mã học sinh duy nhất toàn hệ thống</p>
-          </div>
-        </div>
-      </div>
-
-      <div className="surface overflow-hidden">
-        <div className="flex flex-col gap-3 border-b border-slate-100 p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5">
-          <SearchInput
-            value={searchTerm}
-            onChange={handleSearch}
-            placeholder="Tìm theo mã học sinh hoặc họ tên..."
-            className="w-full sm:max-w-sm"
-          />
-          <p className="text-sm text-slate-500">
-            {pagination ? `${pagination.total} học sinh` : 'Đang tải...'}
-          </p>
         </div>
 
         {listError && students.items.length > 0 ? (
-          <div className="flex items-center justify-between gap-3 border-b border-amber-100 bg-amber-50 px-5 py-3 text-sm text-amber-800">
+          <div className="flex shrink-0 items-center justify-between gap-3 border-b border-amber-100 bg-amber-50 px-5 py-3 text-sm text-amber-800">
             <span>{listError}</span>
             <button
               type="button"
@@ -291,9 +256,9 @@ export default function StudentListPage() {
           />
         ) : (
           <>
-            <div className="overflow-x-auto">
+            <div className="min-h-0 flex-1 overflow-auto">
               <table className="w-full min-w-[920px] text-sm">
-                <thead>
+                <thead className="sticky top-0 z-10">
                   <tr className="table-header">
                     <th className="w-14 px-5 py-3.5 font-semibold">STT</th>
                     <th className="px-4 py-3.5 font-semibold">Mã học sinh</th>

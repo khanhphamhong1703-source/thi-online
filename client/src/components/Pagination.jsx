@@ -19,7 +19,7 @@ export default function Pagination({ page, totalPages, total, limit, onChange })
   const to = Math.min(page * limit, total);
 
   return (
-    <div className="flex flex-col gap-3 border-t border-slate-100 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-5">
+    <div className="flex shrink-0 flex-col gap-3 border-t border-slate-100 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-5">
       <p className="text-sm text-slate-500">
         Hiển thị <span className="font-medium text-slate-700">{from}–{to}</span> trong{' '}
         <span className="font-medium text-slate-700">{total}</span> kết quả

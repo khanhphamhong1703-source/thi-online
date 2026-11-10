@@ -124,23 +124,10 @@ export default function TeacherListPage() {
   const showInitialLoading = loading && data.items.length === 0;
 
   return (
-    <div>
-      <PageHeader
-        eyebrow="Quản trị"
-        title="Quản lý giáo viên"
-        description="Tạo tài khoản, cập nhật thông tin và kiểm soát trạng thái đăng nhập của giáo viên."
-        actions={
-          <Link
-            to="/admin/teachers/new"
-            className="focus-ring inline-flex h-10 items-center gap-2 rounded-lg bg-brand-600 px-4 text-sm font-semibold text-white shadow-sm shadow-brand-600/20 transition hover:bg-brand-700"
-          >
-            <Plus className="h-4 w-4" />
-            Tạo giáo viên
-          </Link>
-        }
-      />
+    <div className="flex min-h-0 flex-1 flex-col">
+      <PageHeader title="Quản lý giáo viên" fill />
 
-      <div className="mb-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="mb-5 grid shrink-0 grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4">
         <StatCard
           label="Tổng số giáo viên"
           value={totals?.teachers ?? 0}
@@ -171,15 +158,15 @@ export default function TeacherListPage() {
         />
       </div>
 
-      <div className="surface overflow-hidden">
-        <div className="flex flex-col gap-3 border-b border-slate-100 p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5">
+      <div className="surface flex min-h-0 flex-1 flex-col overflow-hidden">
+        <div className="flex shrink-0 flex-col gap-3 border-b border-slate-100 p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5">
           <SearchInput
             value={searchTerm}
             onChange={handleSearchChange}
             placeholder="Tìm theo họ tên, username, email..."
             className="w-full sm:max-w-sm"
           />
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <label htmlFor="status-filter" className="whitespace-nowrap text-sm text-slate-500">
               Trạng thái
             </label>
@@ -193,11 +180,18 @@ export default function TeacherListPage() {
               <option value="active">Đang hoạt động</option>
               <option value="locked">Đã khóa</option>
             </Select>
+            <Link
+              to="/admin/teachers/new"
+              className="focus-ring inline-flex h-10 items-center gap-2 rounded-lg bg-brand-600 px-4 text-sm font-semibold text-white shadow-sm shadow-brand-600/20 transition hover:bg-brand-700"
+            >
+              <Plus className="h-4 w-4" />
+              Tạo giáo viên
+            </Link>
           </div>
         </div>
 
         {error && data.items.length > 0 ? (
-          <div className="flex items-center justify-between gap-3 border-b border-amber-100 bg-amber-50 px-5 py-3 text-sm text-amber-800">
+          <div className="flex shrink-0 items-center justify-between gap-3 border-b border-amber-100 bg-amber-50 px-5 py-3 text-sm text-amber-800">
             <span>{error}</span>
             <button
               type="button"
@@ -255,9 +249,9 @@ export default function TeacherListPage() {
           />
         ) : (
           <>
-            <div className="hidden overflow-x-auto lg:block">
+            <div className="hidden min-h-0 flex-1 overflow-auto lg:block">
               <table className="w-full min-w-[960px] text-sm">
-                <thead>
+                <thead className="sticky top-0 z-10">
                   <tr className="table-header">
                     <th className="w-14 px-5 py-3.5 font-semibold">STT</th>
                     <th className="px-4 py-3.5 font-semibold">Họ và tên</th>
@@ -363,7 +357,7 @@ export default function TeacherListPage() {
               </table>
             </div>
 
-            <div className={`divide-y divide-slate-100 lg:hidden ${loading ? 'opacity-60' : ''}`}>
+            <div className={`min-h-0 flex-1 divide-y divide-slate-100 overflow-auto lg:hidden ${loading ? 'opacity-60' : ''}`}>
               {data.items.map((teacher) => (
                 <div key={teacher.id} className="p-4">
                   <div className="flex items-start justify-between gap-3">

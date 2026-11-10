@@ -86,10 +86,7 @@ export default function ImportQuestionsModal({
 
   const handleImport = () => {
     if (!validQuestions.length) return;
-    onImport(validQuestions, {
-      replace: replaceExisting,
-      sectionTitles: parsed.sectionTitles,
-    });
+    onImport(validQuestions, { replace: replaceExisting });
   };
 
   return (
@@ -341,9 +338,6 @@ export default function ImportQuestionsModal({
                         <span className="flex items-center gap-1.5">
                           <Badge variant="neutral">
                             Phần {question.section}
-                            {parsed.sectionTitles?.[question.section]
-                              ? ` · ${parsed.sectionTitles[question.section]}`
-                              : ''}
                           </Badge>
                           <span>Dòng {question.lineNumber}</span>
                         </span>

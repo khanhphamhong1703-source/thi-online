@@ -1,3 +1,9 @@
+export const SECTION_TITLES = {
+  I: 'Trắc nghiệm',
+  II: 'Đúng Sai',
+  III: 'Trả lời ngắn',
+};
+
 export function getExamDisplayStatus(exam) {
   if (!exam) return { label: '—', variant: 'neutral' };
   if (exam.status === 'DRAFT') return { label: 'Bản nháp', variant: 'neutral' };

@@ -93,6 +93,7 @@ export default function App() {
         <Route path="exams/new" element={<ExamFormPage mode="create" />} />
         <Route path="exams/:id" element={<ExamDetailPage />} />
         <Route path="exams/:id/edit" element={<ExamFormPage mode="edit" />} />
+        <Route path="exams/:id/questions" element={<ExamFormPage mode="questions" />} />
         <Route path="exams/:id/results" element={<ExamResultsPage />} />
         <Route path="activity" element={<ActivityPage />} />
         <Route path="profile" element={<ProfilePage />} />

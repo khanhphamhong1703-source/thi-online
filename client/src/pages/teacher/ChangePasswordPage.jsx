@@ -81,9 +81,7 @@ export default function ChangePasswordPage() {
       <PageHeader
         backTo="/teacher/profile"
         backLabel="Quay lại thông tin cá nhân"
-        eyebrow="Bảo mật"
         title="Đổi mật khẩu"
-        description="Cập nhật mật khẩu đăng nhập cho tài khoản giáo viên của bạn."
       />
 
       <div className="grid gap-6 lg:grid-cols-3">

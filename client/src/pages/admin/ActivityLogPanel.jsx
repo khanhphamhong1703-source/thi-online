@@ -113,8 +113,8 @@ export default function ActivityLogPanel() {
     : null;
 
   return (
-    <section className="surface overflow-hidden">
-      <div className="flex flex-col gap-3 border-b border-slate-100 p-4">
+    <section className="surface flex min-h-0 flex-1 flex-col overflow-hidden">
+      <div className="flex shrink-0 flex-col gap-3 border-b border-slate-100 p-4">
         <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
           <SearchInput
             value={searchTerm}
@@ -214,11 +214,12 @@ export default function ActivityLogPanel() {
       </div>
 
       {error ? (
-        <div className="border-b border-rose-100 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+        <div className="shrink-0 border-b border-rose-100 bg-rose-50 px-4 py-3 text-sm text-rose-700">
           {error}
         </div>
       ) : null}
 
+      <div className="min-h-0 flex-1 overflow-auto">
       {loading && !data.items.length ? (
         <LoadingState label="Đang tải lịch sử hoạt động..." />
       ) : data.items.length === 0 ? (
@@ -228,9 +229,9 @@ export default function ActivityLogPanel() {
           description="Thử thay đổi bộ lọc hoặc khoảng thời gian."
         />
       ) : (
-        <div className={`hidden overflow-x-auto sm:block ${loading ? 'opacity-60' : ''}`}>
+        <div className={`hidden sm:block ${loading ? 'opacity-60' : ''}`}>
           <table className="w-full min-w-[1040px] text-sm">
-            <thead>
+            <thead className="sticky top-0 z-10">
               <tr className="table-header">
                 <th className="px-4 py-3 font-semibold">Thời gian</th>
                 <th className="px-4 py-3 font-semibold">Giáo viên</th>
@@ -321,6 +322,7 @@ export default function ActivityLogPanel() {
           })}
         </ul>
       ) : null}
+      </div>
 
       {data.pagination ? (
         <Pagination

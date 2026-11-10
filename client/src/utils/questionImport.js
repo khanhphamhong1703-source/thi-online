@@ -96,7 +96,6 @@ export function parseQuestionText(text) {
   let lastKind = null;
   let lastOption = null;
   let currentSection = 'I';
-  const sectionTitles = { I: '', II: '', III: '' };
 
   const startQuestion = (content, lineNumber) => {
     if (current) collected.push(current);
@@ -136,8 +135,6 @@ export function parseQuestionText(text) {
         current = null;
       }
       currentSection = SECTION_MAP[sectionMatch[1].toUpperCase()] || 'I';
-      const title = sectionMatch[2]?.trim();
-      if (title) sectionTitles[currentSection] = title;
       lastKind = null;
       lastOption = null;
       return;
@@ -311,7 +308,6 @@ export function parseQuestionText(text) {
       valid: valid.length,
       invalid: questions.length - valid.length,
     },
-    sectionTitles,
     globalError:
       normalized.trim() && questions.length === 0
         ? 'Không nhận diện được câu hỏi. Hãy dùng đúng mẫu bên cạnh.'

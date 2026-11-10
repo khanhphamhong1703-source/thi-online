@@ -87,23 +87,7 @@ export default function TeacherDetailPage() {
       <PageHeader
         backTo="/admin/teachers"
         backLabel="Quay lại danh sách giáo viên"
-        eyebrow="Hồ sơ giáo viên"
-        title="Chi tiết giáo viên"
-        description="Thông tin tài khoản và tình trạng hoạt động trên hệ thống."
-        actions={
-          <>
-            <Button variant="secondary" icon={Edit3} onClick={() => navigate(`/admin/teachers/${id}/edit`)}>
-              Chỉnh sửa
-            </Button>
-            <Button
-              variant={teacher.isActive ? 'danger' : 'primary'}
-              icon={teacher.isActive ? Lock : Unlock}
-              onClick={() => setStatusOpen(true)}
-            >
-              {teacher.isActive ? 'Khóa tài khoản' : 'Mở khóa'}
-            </Button>
-          </>
-        }
+        title={teacher.fullName}
       />
 
       <div className="grid gap-6 lg:grid-cols-3">

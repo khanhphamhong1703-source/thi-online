@@ -138,19 +138,10 @@ export default function ActivityPage() {
   const selectedStatus = selected ? ACTIVITY_STATUS[selected.status] || ACTIVITY_STATUS.SUCCESS : null;
 
   return (
-    <div>
-      <PageHeader
-        eyebrow="Tài khoản giáo viên"
-        title="Lịch sử hoạt động"
-        description="Các lần đăng nhập và thao tác làm thay đổi dữ liệu của bạn, mới nhất ở trên cùng."
-        actions={
-          <Button variant="secondary" icon={RefreshCcw} onClick={() => setReloadKey((value) => value + 1)}>
-            Làm mới
-          </Button>
-        }
-      />
+    <div className="flex min-h-0 flex-1 flex-col">
+      <PageHeader title="Lịch sử hoạt động" fill />
 
-      <section className="surface mb-4 p-4">
+      <section className="surface mb-4 shrink-0 p-4">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <SearchInput
             value={searchTerm}
@@ -206,17 +197,24 @@ export default function ActivityPage() {
             <Button variant="ghost" onClick={resetFilters}>
               Xoá lọc
             </Button>
+            <Button
+              variant="secondary"
+              icon={RefreshCcw}
+              onClick={() => setReloadKey((value) => value + 1)}
+            >
+              Làm mới
+            </Button>
           </div>
         </div>
       </section>
 
       {error ? (
-        <div className="mb-4 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+        <div className="mb-4 shrink-0 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
           {error}
         </div>
       ) : null}
 
-      <section className="surface overflow-hidden">
+      <section className="surface flex min-h-0 flex-1 flex-col overflow-hidden">
         {loading && !data.items.length ? (
           <LoadingState label="Đang tải lịch sử hoạt động..." />
         ) : data.items.length === 0 ? (
@@ -226,10 +224,10 @@ export default function ActivityPage() {
             description="Các thao tác của bạn sẽ xuất hiện tại đây sau khi thực hiện."
           />
         ) : (
-          <div className={loading ? 'opacity-60' : ''}>
-            <div className="hidden overflow-x-auto sm:block">
+          <div className={`min-h-0 flex-1 overflow-auto ${loading ? 'opacity-60' : ''}`}>
+            <div className="hidden sm:block">
               <table className="w-full min-w-[820px] text-sm">
-                <thead>
+                <thead className="sticky top-0 z-10">
                   <tr className="table-header">
                     <th className="w-24 px-4 py-3 text-left font-semibold">Thời gian</th>
                     <th className="px-4 py-3 text-left font-semibold">Hành động</th>

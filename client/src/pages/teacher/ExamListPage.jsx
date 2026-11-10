@@ -4,11 +4,12 @@ import {
   BarChart3,
   ClipboardList,
   Clock3,
-  Edit3,
   Eye,
   FileText,
+  ListChecks,
   Plus,
   RefreshCcw,
+  Settings2,
 } from 'lucide-react';
 import { examApi } from '../../api/exams';
 import { getErrorMessage } from '../../api/client';
@@ -69,31 +70,18 @@ export default function ExamListPage() {
   const showInitialLoading = loading && data.items.length === 0;
 
   return (
-    <div>
-      <PageHeader
-        eyebrow="Kiểm tra & đánh giá"
-        title="Quản lý đề thi"
-        description="Soạn đề trắc nghiệm, cài đặt ca thi, công bố và theo dõi kết quả học sinh."
-        actions={
-          <Link
-            to="/teacher/exams/new"
-            className="focus-ring inline-flex h-10 items-center gap-2 rounded-lg bg-brand-600 px-4 text-sm font-semibold text-white shadow-sm shadow-brand-600/20 transition hover:bg-brand-700"
-          >
-            <Plus className="h-4 w-4" />
-            Tạo đề thi
-          </Link>
-        }
-      />
+    <div className="flex min-h-0 flex-1 flex-col">
+      <PageHeader title="Quản lý đề thi" fill />
 
-      <div className="surface overflow-hidden">
-        <div className="flex flex-col gap-3 border-b border-slate-100 p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5">
+      <div className="surface flex min-h-0 flex-1 flex-col overflow-hidden">
+        <div className="flex shrink-0 flex-col gap-3 border-b border-slate-100 p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5">
           <SearchInput
             value={searchTerm}
             onChange={handleSearch}
             placeholder="Tìm theo tên đề, môn, lớp..."
             className="w-full sm:max-w-sm"
           />
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <label htmlFor="exam-status" className="whitespace-nowrap text-sm text-slate-500">
               Trạng thái
             </label>
@@ -111,11 +99,18 @@ export default function ExamListPage() {
               <option value="PUBLISHED">Đã công bố</option>
               <option value="CLOSED">Đã đóng</option>
             </Select>
+            <Link
+              to="/teacher/exams/new"
+              className="focus-ring inline-flex h-10 items-center gap-2 rounded-lg bg-brand-600 px-4 text-sm font-semibold text-white shadow-sm shadow-brand-600/20 transition hover:bg-brand-700"
+            >
+              <Plus className="h-4 w-4" />
+              Tạo đề thi
+            </Link>
           </div>
         </div>
 
         {error && data.items.length > 0 ? (
-          <div className="flex items-center justify-between gap-3 border-b border-amber-100 bg-amber-50 px-5 py-3 text-sm text-amber-800">
+          <div className="flex shrink-0 items-center justify-between gap-3 border-b border-amber-100 bg-amber-50 px-5 py-3 text-sm text-amber-800">
             <span>{error}</span>
             <button
               type="button"
@@ -173,9 +168,9 @@ export default function ExamListPage() {
           />
         ) : (
           <>
-            <div className="overflow-x-auto">
+            <div className="min-h-0 flex-1 overflow-auto">
               <table className="w-full min-w-[980px] text-sm">
-                <thead>
+                <thead className="sticky top-0 z-10">
                   <tr className="table-header">
                     <th className="w-14 px-5 py-3.5 font-semibold">STT</th>
                     <th className="px-4 py-3.5 font-semibold">Đề thi</th>
@@ -256,9 +251,16 @@ export default function ExamListPage() {
                             <Link
                               to={`/teacher/exams/${exam.id}/edit`}
                               className="focus-ring rounded-lg p-2 text-slate-500 transition hover:bg-slate-100 hover:text-slate-800"
-                              title="Chỉnh sửa"
+                              title="Cấu hình đề thi"
                             >
-                              <Edit3 className="h-4 w-4" />
+                              <Settings2 className="h-4 w-4" />
+                            </Link>
+                            <Link
+                              to={`/teacher/exams/${exam.id}/questions`}
+                              className="focus-ring rounded-lg p-2 text-slate-500 transition hover:bg-slate-100 hover:text-slate-800"
+                              title="Sửa câu hỏi"
+                            >
+                              <ListChecks className="h-4 w-4" />
                             </Link>
                             <Link
                               to={`/teacher/exams/${exam.id}/results`}

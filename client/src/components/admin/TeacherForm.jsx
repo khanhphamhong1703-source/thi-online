@@ -153,13 +153,7 @@ export default function TeacherForm({ mode, teacherId }) {
       <PageHeader
         backTo={isEdit ? `/admin/teachers/${teacherId}` : '/admin/teachers'}
         backLabel={isEdit ? 'Quay lại chi tiết giáo viên' : 'Quay lại danh sách giáo viên'}
-        eyebrow="Quản trị"
         title={isEdit ? 'Chỉnh sửa giáo viên' : 'Tạo tài khoản giáo viên'}
-        description={
-          isEdit
-            ? 'Cập nhật thông tin tài khoản. Mật khẩu không thay đổi tại màn hình này.'
-            : 'Tài khoản được tạo bởi Admin và cấp cho giáo viên sử dụng để đăng nhập.'
-        }
       />
 
       <form onSubmit={handleSubmit(onSubmit)} noValidate>

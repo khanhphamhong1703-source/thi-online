@@ -4,7 +4,7 @@ import Badge from './Badge';
 import Button from './Button';
 import LoadingState from './LoadingState';
 import { formatDateTime } from '../utils/format';
-import { getAttemptDisplayStatus } from '../utils/exam';
+import { SECTION_TITLES, getAttemptDisplayStatus } from '../utils/exam';
 
 function SummaryCard({ label, value, hint, tone = 'default' }) {
   const toneClass =
@@ -114,7 +114,7 @@ export default function ExamAttemptDetailModal({
           <div className="space-y-3">
             {detail.questions.map((question) => {
               const sectionTitle = question.section
-                ? detail.exam.sectionTitles?.[question.section]
+                ? SECTION_TITLES[question.section] || ''
                 : '';
               return (
                 <article

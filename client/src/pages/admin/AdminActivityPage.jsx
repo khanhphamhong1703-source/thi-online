@@ -3,12 +3,8 @@ import ActivityLogPanel from './ActivityLogPanel';
 
 export default function AdminActivityPage() {
   return (
-    <div>
-      <PageHeader
-        eyebrow="Giám sát"
-        title="Lịch sử hoạt động"
-        description="Tra soát đăng nhập và thao tác của giáo viên trên toàn hệ thống."
-      />
+    <div className="flex min-h-0 flex-1 flex-col">
+      <PageHeader title="Lịch sử hoạt động" fill />
       <ActivityLogPanel />
     </div>
   );

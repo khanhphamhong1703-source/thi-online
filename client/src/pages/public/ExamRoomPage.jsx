@@ -33,6 +33,7 @@ import {
   isExamFullscreenSupported,
 } from '../../utils/fullscreen';
 import { formatDateTime } from '../../utils/format';
+import { SECTION_TITLES } from '../../utils/exam';
 import Badge from '../../components/Badge';
 import Button from '../../components/Button';
 import ConfirmDialog from '../../components/ConfirmDialog';
@@ -955,9 +956,7 @@ export default function ExamRoomPage() {
                 onAnswerChange={(value) =>
                   updateAnswer(currentQuestion.id, value)
                 }
-                sectionTitle={
-                  data.exam.sectionTitles?.[currentQuestion.section || 'I'] || ''
-                }
+                sectionTitle={SECTION_TITLES[currentQuestion.section || 'I'] || ''}
               />
 
               <div className="mt-7 flex items-center justify-between gap-3 border-t border-slate-100 pt-5">
@@ -1000,9 +999,7 @@ export default function ExamRoomPage() {
                     answer={answers[question.id]}
                     onSelect={(optionIndex) => selectAnswer(question.id, optionIndex)}
                     onAnswerChange={(value) => updateAnswer(question.id, value)}
-                    sectionTitle={
-                      data.exam.sectionTitles?.[question.section || 'I'] || ''
-                    }
+                    sectionTitle={SECTION_TITLES[question.section || 'I'] || ''}
                   />
                 </section>
               ))}

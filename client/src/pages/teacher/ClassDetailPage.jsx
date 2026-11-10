@@ -82,28 +82,7 @@ export default function ClassDetailPage() {
       <PageHeader
         backTo="/teacher/classes"
         backLabel="Quay lại danh sách lớp học"
-        eyebrow="Chi tiết lớp học"
         title={classroom.name}
-        description={`${classroom.classCode} · Năm học ${classroom.schoolYear}`}
-        actions={
-          <>
-            <Button
-              variant="secondary"
-              icon={Edit3}
-              onClick={() => navigate(`/teacher/classes/${id}/edit`)}
-            >
-              Chỉnh sửa
-            </Button>
-            <Button
-              variant="danger"
-              icon={Archive}
-              onClick={() => setArchiveOpen(true)}
-              disabled={classroom.isArchived}
-            >
-              Lưu trữ
-            </Button>
-          </>
-        }
       />
 
       {classroom.isArchived ? (
@@ -126,9 +105,23 @@ export default function ClassDetailPage() {
                 </p>
               </div>
             </div>
-            <Badge variant={classroom.isArchived ? 'warning' : 'active'}>
-              {classroom.isArchived ? 'Đã lưu trữ' : 'Đang quản lý'}
-            </Badge>
+            <div className="flex flex-wrap items-center gap-2">
+              <Button
+                variant="secondary"
+                icon={Edit3}
+                onClick={() => navigate(`/teacher/classes/${id}/edit`)}
+              >
+                Chỉnh sửa
+              </Button>
+              <Button
+                variant="ghost-danger"
+                icon={Archive}
+                onClick={() => setArchiveOpen(true)}
+                disabled={classroom.isArchived}
+              >
+                Lưu trữ
+              </Button>
+            </div>
           </div>
 
           <dl className="mt-5 grid gap-5 sm:grid-cols-2">

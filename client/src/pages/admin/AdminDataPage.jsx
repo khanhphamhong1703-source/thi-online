@@ -47,7 +47,6 @@ const COLUMN_HINTS = {
 const SECTIONS = {
   classes: {
     title: 'Lớp học',
-    description: 'Toàn bộ lớp học, kể cả lớp đã lưu trữ; có thể khôi phục hoặc xoá vĩnh viễn.',
     emptyTitle: 'Chưa có lớp học nào',
     emptyDescription: 'Lớp học do giáo viên tạo sẽ xuất hiện ở đây.',
     placeholder: 'Tìm theo tên lớp, mã lớp...',
@@ -58,7 +57,6 @@ const SECTIONS = {
   },
   students: {
     title: 'Học sinh',
-    description: 'Hồ sơ học sinh, lớp đang theo học và số lượt thi.',
     emptyTitle: 'Chưa có học sinh nào',
     emptyDescription: 'Học sinh được thêm vào lớp sẽ xuất hiện ở đây.',
     placeholder: 'Tìm theo tên, mã học sinh...',
@@ -68,7 +66,6 @@ const SECTIONS = {
   },
   exams: {
     title: 'Đề thi',
-    description: 'Đề nháp, đã công bố, đã đóng và số lượt làm bài.',
     emptyTitle: 'Chưa có đề thi nào',
     emptyDescription: 'Đề do giáo viên tạo sẽ xuất hiện ở đây.',
     placeholder: 'Tìm theo tên đề, môn học...',
@@ -410,22 +407,15 @@ export default function AdminDataPage() {
   };
 
   return (
-    <div>
-      <PageHeader
-        eyebrow="Dữ liệu toàn hệ thống"
-        title={config.title}
-        description={config.description}
-        actions={
-          <Button variant="secondary" icon={RefreshCcw} onClick={refresh}>
-            Làm mới
-          </Button>
-        }
-      />
+    <div className="flex min-h-0 flex-1 flex-col">
+      <PageHeader title={config.title} fill />
 
-      <DataNav />
+      <div className="shrink-0">
+        <DataNav />
+      </div>
 
-      <section className="surface overflow-hidden">
-        <div className="flex flex-col gap-3 border-b border-slate-100 p-4 sm:flex-row sm:items-center sm:justify-between">
+      <section className="surface flex min-h-0 flex-1 flex-col overflow-hidden">
+        <div className="flex shrink-0 flex-col gap-3 border-b border-slate-100 p-4 sm:flex-row sm:items-center sm:justify-between">
           <SearchInput
             value={searchTerm}
             onChange={(event) => {
@@ -435,27 +425,32 @@ export default function AdminDataPage() {
             placeholder={config.placeholder}
             className="sm:max-w-xs"
           />
-          {config.statusOptions.length ? (
-            <Select
-              value={statusValue}
-              onChange={(event) => {
-                setStatus(event.target.value);
-                setPage(1);
-              }}
-              className="w-full sm:w-44"
-              aria-label="Lọc theo trạng thái"
-            >
-              {config.statusOptions.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </Select>
-          ) : null}
+          <div className="flex flex-wrap items-center gap-2">
+            {config.statusOptions.length ? (
+              <Select
+                value={statusValue}
+                onChange={(event) => {
+                  setStatus(event.target.value);
+                  setPage(1);
+                }}
+                className="w-full sm:w-44"
+                aria-label="Lọc theo trạng thái"
+              >
+                {config.statusOptions.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </Select>
+            ) : null}
+            <Button variant="secondary" icon={RefreshCcw} onClick={refresh}>
+              Làm mới
+            </Button>
+          </div>
         </div>
 
         {teacherFilterId ? (
-          <div className="flex items-center justify-between gap-3 border-b border-brand-100 bg-brand-50/60 px-4 py-2.5 text-xs text-brand-800">
+          <div className="flex shrink-0 items-center justify-between gap-3 border-b border-brand-100 bg-brand-50/60 px-4 py-2.5 text-xs text-brand-800">
             <span>
               Đang lọc lớp của{' '}
               <strong className="font-semibold">{teacherFilterName || 'giáo viên đã chọn'}</strong>
@@ -474,7 +469,7 @@ export default function AdminDataPage() {
         ) : null}
 
         {error ? (
-          <div className="flex items-center justify-between gap-3 border-b border-rose-100 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+          <div className="flex shrink-0 items-center justify-between gap-3 border-b border-rose-100 bg-rose-50 px-4 py-3 text-sm text-rose-700">
             <span>{error}</span>
             <button
               type="button"
@@ -514,9 +509,9 @@ export default function AdminDataPage() {
           />
         ) : (
           <>
-            <div className={`hidden overflow-x-auto lg:block ${loading ? 'opacity-60' : ''}`}>
+            <div className={`hidden min-h-0 flex-1 overflow-auto lg:block ${loading ? 'opacity-60' : ''}`}>
               <table className="w-full min-w-[900px] text-sm">
-                <thead>
+                <thead className="sticky top-0 z-10">
                   <tr className="table-header">
                     {config.columns.map((column, index) => (
                       <th
@@ -535,7 +530,7 @@ export default function AdminDataPage() {
               </table>
             </div>
 
-            <div className={`divide-y divide-slate-100 lg:hidden ${loading ? 'opacity-60' : ''}`}>
+            <div className={`min-h-0 flex-1 divide-y divide-slate-100 overflow-auto lg:hidden ${loading ? 'opacity-60' : ''}`}>
               {renderCards()}
             </div>
           </>

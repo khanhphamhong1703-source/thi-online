@@ -80,11 +80,6 @@ export default function ExamResultsPage() {
       : [];
   const selectedClass =
     classId === 'all' ? null : classOptions.find((classroom) => classroom.id === classId) || null;
-  const classSummary = selectedClass
-    ? selectedClass.name
-    : classOptions.length
-      ? classOptions.map((classroom) => classroom.name).join(', ')
-      : '—';
   const hasFilters = Boolean(debouncedSearch) || status !== 'all' || classId !== 'all';
   const stats = data.stats;
   const distributionMax = stats
@@ -168,45 +163,16 @@ export default function ExamResultsPage() {
   };
 
   return (
-    <div>
+    <div className="flex min-h-0 flex-1 flex-col">
       <PageHeader
         backTo={`/teacher/exams/${id}`}
         backLabel="Quay lại chi tiết đề thi"
-        eyebrow={
-          data.exam
-            ? `${data.exam.subject} · ${classSummary}`
-            : 'Kết quả thi'
-        }
         title={data.exam ? `Kết quả: ${data.exam.title}` : 'Kết quả thi'}
-        description="Theo dõi lượt làm bài, thời gian nộp và điểm số của học sinh."
-        actions={
-          data.exam ? (
-            <div className="flex flex-wrap items-center gap-2">
-              <Badge variant="info">Mã ca thi: {data.exam.accessCode}</Badge>
-              <Button
-                variant="secondary"
-                icon={RotateCcw}
-                loading={regrading}
-                onClick={handleRegrade}
-                title="Chấm lại toàn bộ bài đã nộp theo đáp án hiện tại"
-              >
-                Chấm lại
-              </Button>
-              <Button
-                variant="secondary"
-                icon={Download}
-                loading={exporting}
-                onClick={handleExport}
-              >
-                Xuất Excel
-              </Button>
-            </div>
-          ) : null
-        }
+        fill
       />
 
       {stats ? (
-        <div className="mb-5 grid gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)]">
+        <div className="mb-5 grid shrink-0 gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)]">
           <div className="surface p-5">
             <div className="flex items-start justify-between gap-3">
               <div>
@@ -303,8 +269,8 @@ export default function ExamResultsPage() {
         </div>
       ) : null}
 
-      <div className="surface overflow-hidden">
-        <div className="flex flex-col gap-3 border-b border-slate-100 p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5">
+      <div className="surface flex min-h-0 flex-1 flex-col overflow-hidden">
+        <div className="flex shrink-0 flex-col gap-3 border-b border-slate-100 p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5">
           <SearchInput
             value={searchTerm}
             onChange={(event) => {
@@ -357,11 +323,32 @@ export default function ExamResultsPage() {
                 <option value="IN_PROGRESS">Đang làm</option>
               </Select>
             </div>
+            {data.exam ? (
+              <>
+                <Button
+                  variant="secondary"
+                  icon={RotateCcw}
+                  loading={regrading}
+                  onClick={handleRegrade}
+                  title="Chấm lại toàn bộ bài đã nộp theo đáp án hiện tại"
+                >
+                  Chấm lại
+                </Button>
+                <Button
+                  variant="secondary"
+                  icon={Download}
+                  loading={exporting}
+                  onClick={handleExport}
+                >
+                  Xuất Excel
+                </Button>
+              </>
+            ) : null}
           </div>
         </div>
 
         {error && data.items.length > 0 ? (
-          <div className="flex items-center justify-between gap-3 border-b border-amber-100 bg-amber-50 px-5 py-3 text-sm text-amber-800">
+          <div className="flex shrink-0 items-center justify-between gap-3 border-b border-amber-100 bg-amber-50 px-5 py-3 text-sm text-amber-800">
             <span>{error}</span>
             <button
               type="button"
@@ -413,9 +400,9 @@ export default function ExamResultsPage() {
           />
         ) : (
           <>
-            <div className="overflow-x-auto">
+            <div className="min-h-0 flex-1 overflow-auto">
               <table className="w-full min-w-[960px] text-sm">
-                <thead>
+                <thead className="sticky top-0 z-10">
                   <tr className="table-header">
                     <th className="w-14 px-5 py-3.5 font-semibold">STT</th>
                     <th className="px-4 py-3.5 font-semibold">Học sinh</th>
