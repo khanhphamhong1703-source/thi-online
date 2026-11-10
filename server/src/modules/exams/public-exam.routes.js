@@ -14,28 +14,48 @@ const {
 
 const router = express.Router();
 
-const startLimiter = rateLimit({
+const clientLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  limit: 40,
+  limit: 600,
   standardHeaders: true,
   legacyHeaders: false,
   message: {
     success: false,
-    message: 'Bạn đã thử vào thi quá nhiều lần. Vui lòng thử lại sau.',
+    message: 'Bạn đã gửi quá nhiều yêu cầu. Vui lòng thử lại sau.',
+  },
+});
+
+const identityFailureLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 8,
+  skipSuccessfulRequests: true,
+  keyGenerator(req) {
+    const ip = req.ip;
+    const accessCode = String(req.body?.accessCode || '').trim().toUpperCase();
+    const studentCode = String(req.body?.studentCode || '').trim().toUpperCase();
+    return `${ip}:${accessCode}:${studentCode}`;
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: {
+    success: false,
+    message: 'Thông tin học sinh hoặc mã ca thi đã thử sai quá nhiều lần. Vui lòng thử lại sau.',
   },
 });
 
 router.get('/exams', validate({ query: publicExamsQuerySchema }), publicExamController.listExams);
 router.post(
   '/exams/lookup',
-  startLimiter,
+  clientLimiter,
+  identityFailureLimiter,
   validate({ body: startAttemptSchema }),
   publicExamController.lookupExam
 );
 router.get('/exams/:id', validate({ params: examIdSchema }), publicExamController.getExam);
 router.post(
   '/exams/:id/start',
-  startLimiter,
+  clientLimiter,
+  identityFailureLimiter,
   validate({ params: examIdSchema, body: startAttemptSchema }),
   publicExamController.startAttempt
 );

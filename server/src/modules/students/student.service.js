@@ -2,13 +2,14 @@ const prisma = require('../../config/prisma');
 const ApiError = require('../../utils/ApiError');
 const { getPagination, paginationMeta } = require('../../utils/pagination');
 const { parseDateInput } = require('../../utils/date');
+const { normalizeSearchText } = require('../../utils/search');
 const { assertClassOwner } = require('../classes/class.service');
 
 const STUDENT_CODE_PREFIX = 'HS';
 const STUDENT_CODE_MAX = 9999;
 
 function buildSearchText(code, fullName, phone, email) {
-  return [code, fullName, phone || '', email || ''].join(' ').toLowerCase();
+  return normalizeSearchText([code, fullName, phone || '', email || ''].join(' '));
 }
 
 function normalizeOptional(value) {
@@ -17,19 +18,31 @@ function normalizeOptional(value) {
   return trimmed || null;
 }
 
-async function generateStudentCode() {
-  const students = await prisma.student.findMany({
-    where: { studentCode: { startsWith: STUDENT_CODE_PREFIX } },
-    select: { studentCode: true },
-  });
-
+async function generateStudentCode(database = prisma) {
+  let skip = 0;
   let maxNumber = 0;
-  for (const { studentCode } of students) {
-    const match = new RegExp(`^${STUDENT_CODE_PREFIX}(\\d{4})$`).exec(studentCode);
-    if (match) {
-      maxNumber = Math.max(maxNumber, Number(match[1]));
+  let students;
+
+  do {
+    students = await database.student.findMany({
+      where: { studentCode: { startsWith: STUDENT_CODE_PREFIX } },
+      select: { studentCode: true },
+      orderBy: { studentCode: 'desc' },
+      skip,
+      take: 100,
+    });
+
+    for (const { studentCode } of students) {
+      const match = new RegExp(`^${STUDENT_CODE_PREFIX}(\\d{4})$`).exec(studentCode);
+      if (match) {
+        maxNumber = Number(match[1]);
+        break;
+      }
     }
-  }
+
+    if (maxNumber || students.length < 100) break;
+    skip += students.length;
+  } while (students.length);
 
   const nextNumber = maxNumber + 1;
   if (nextNumber > STUDENT_CODE_MAX) {
@@ -39,27 +52,29 @@ async function generateStudentCode() {
   return `${STUDENT_CODE_PREFIX}${String(nextNumber).padStart(4, '0')}`;
 }
 
-async function createStudentWithGeneratedCode(payload, dateOfBirth) {
+async function createStudentWithGeneratedCode(classId, payload, dateOfBirth) {
   for (let attempt = 0; attempt < 5; attempt += 1) {
-    const studentCode = await generateStudentCode();
     try {
-      return await prisma.student.create({
-        data: {
-          studentCode,
-          fullName: payload.fullName,
-          dateOfBirth,
-          phone: normalizeOptional(payload.phone),
-          email: normalizeOptional(payload.email),
-          searchText: buildSearchText(
+      return await prisma.$transaction(async (transaction) => {
+        const studentCode = await generateStudentCode(transaction);
+        const phone = normalizeOptional(payload.phone);
+        const email = normalizeOptional(payload.email);
+        const student = await transaction.student.create({
+          data: {
             studentCode,
-            payload.fullName,
-            normalizeOptional(payload.phone),
-            normalizeOptional(payload.email)
-          ),
-        },
+            fullName: payload.fullName,
+            dateOfBirth,
+            phone,
+            email,
+            searchText: buildSearchText(studentCode, payload.fullName, phone, email),
+          },
+        });
+
+        await transaction.enrollment.create({ data: { classId, studentId: student.id } });
+        return student;
       });
     } catch (error) {
-      if (error.code !== 'P2002') throw error;
+      if (error.code !== 'P2002' && error.code !== 'P2034') throw error;
     }
   }
 
@@ -98,7 +113,7 @@ async function listStudentsInClass(classId, teacherId, { page, limit, search }) 
   const where = { classId };
 
   if (search) {
-    where.student = { is: { searchText: { contains: search.toLowerCase() } } };
+    where.student = { is: { searchText: { contains: buildSearchText('', search, '', '') } } };
   }
 
   const [enrollments, total] = await Promise.all([
@@ -128,16 +143,7 @@ async function addStudentToClass(classId, teacherId, payload) {
     throw new ApiError(422, 'Ngày sinh không hợp lệ');
   }
 
-  const student = await createStudentWithGeneratedCode(payload, date);
-
-  try {
-    await prisma.enrollment.create({ data: { classId, studentId: student.id } });
-  } catch (error) {
-    if (error.code === 'P2002') {
-      throw new ApiError(409, 'Học sinh này đã thuộc lớp hiện tại');
-    }
-    throw error;
-  }
+  const student = await createStudentWithGeneratedCode(classId, payload, date);
 
   return { student };
 }

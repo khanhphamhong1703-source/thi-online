@@ -9,6 +9,8 @@
     "start": "node src/server.js",
     "prisma:generate": "prisma generate",
     "db:push": "prisma db push",
+    "db:normalize-student-search": "node scripts/normalize-student-search.js",
+    "db:cleanup-test-data": "node scripts/cleanup-test-data.js",
     "seed": "node prisma/seed.js",
     "postinstall": "prisma generate"
   },

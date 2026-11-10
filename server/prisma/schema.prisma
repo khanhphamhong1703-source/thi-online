@@ -135,6 +135,8 @@ model ExamAttempt {
   answers        Json?
   questionOrder  String[]
   optionOrders   Json?
+  questionSnapshot Json?
+  trueFalseScoresSnapshot Json?
   score          Float?
   maxScore       Float?
   correctCount   Int?

@@ -29,6 +29,7 @@ services:
       NODE_ENV: production
       PORT: 5050
       CLIENT_URL: ${CLIENT_URL:-https://localhost:8443}
+      CORS_EXTRA_ORIGINS: ${CORS_EXTRA_ORIGINS:-http://localhost:5180}
       MONGODB_URI: ${MONGODB_URI:-mongodb://mongodb:27017/thi_online?replicaSet=rs0}
       JWT_SECRET: ${JWT_SECRET:-change_this_to_a_long_random_secret_at_least_32_chars}
       JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-7d}

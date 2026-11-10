@@ -1,49 +1,52 @@
+import { lazy, Suspense } from 'react';
 import { Route, Routes } from 'react-router-dom';
 import ProtectedRoute from './components/ProtectedRoute';
+import LoadingState from './components/LoadingState';
 import AppLayout from './layouts/AppLayout';
 import PublicLayout from './layouts/PublicLayout';
 
-import LoginPage from './pages/auth/LoginPage';
-import AdminDashboardPage from './pages/admin/AdminDashboardPage';
-import AdminDataPage from './pages/admin/AdminDataPage';
-import TeacherListPage from './pages/admin/TeacherListPage';
-import TeacherCreatePage from './pages/admin/TeacherCreatePage';
-import TeacherEditPage from './pages/admin/TeacherEditPage';
-import TeacherDetailPage from './pages/admin/TeacherDetailPage';
-import TeacherDashboardPage from './pages/teacher/TeacherDashboardPage';
-import ClassListPage from './pages/teacher/ClassListPage';
-import ClassCreatePage from './pages/teacher/ClassCreatePage';
-import ClassEditPage from './pages/teacher/ClassEditPage';
-import ClassDetailPage from './pages/teacher/ClassDetailPage';
-import StudentListPage from './pages/teacher/StudentListPage';
-import StudentCreatePage from './pages/teacher/StudentCreatePage';
-import StudentEditPage from './pages/teacher/StudentEditPage';
-import StudentDetailPage from './pages/teacher/StudentDetailPage';
-import ImportExcelPage from './pages/teacher/ImportExcelPage';
-import ProfilePage from './pages/teacher/ProfilePage';
-import ChangePasswordPage from './pages/teacher/ChangePasswordPage';
-import ExamListPage from './pages/teacher/ExamListPage';
-import ExamFormPage from './pages/teacher/ExamFormPage';
-import ExamDetailPage from './pages/teacher/ExamDetailPage';
-import ExamResultsPage from './pages/teacher/ExamResultsPage';
-import ExamBoardPage from './pages/public/ExamBoardPage';
-import ExamIntroPage from './pages/public/ExamIntroPage';
-import ExamRoomPage from './pages/public/ExamRoomPage';
-import NotFoundPage from './pages/NotFoundPage';
+const LoginPage = lazy(() => import('./pages/auth/LoginPage'));
+const AdminDashboardPage = lazy(() => import('./pages/admin/AdminDashboardPage'));
+const AdminDataPage = lazy(() => import('./pages/admin/AdminDataPage'));
+const TeacherListPage = lazy(() => import('./pages/admin/TeacherListPage'));
+const TeacherCreatePage = lazy(() => import('./pages/admin/TeacherCreatePage'));
+const TeacherEditPage = lazy(() => import('./pages/admin/TeacherEditPage'));
+const TeacherDetailPage = lazy(() => import('./pages/admin/TeacherDetailPage'));
+const TeacherDashboardPage = lazy(() => import('./pages/teacher/TeacherDashboardPage'));
+const ClassListPage = lazy(() => import('./pages/teacher/ClassListPage'));
+const ClassCreatePage = lazy(() => import('./pages/teacher/ClassCreatePage'));
+const ClassEditPage = lazy(() => import('./pages/teacher/ClassEditPage'));
+const ClassDetailPage = lazy(() => import('./pages/teacher/ClassDetailPage'));
+const StudentListPage = lazy(() => import('./pages/teacher/StudentListPage'));
+const StudentCreatePage = lazy(() => import('./pages/teacher/StudentCreatePage'));
+const StudentEditPage = lazy(() => import('./pages/teacher/StudentEditPage'));
+const StudentDetailPage = lazy(() => import('./pages/teacher/StudentDetailPage'));
+const ImportExcelPage = lazy(() => import('./pages/teacher/ImportExcelPage'));
+const ProfilePage = lazy(() => import('./pages/teacher/ProfilePage'));
+const ChangePasswordPage = lazy(() => import('./pages/teacher/ChangePasswordPage'));
+const ExamListPage = lazy(() => import('./pages/teacher/ExamListPage'));
+const ExamFormPage = lazy(() => import('./pages/teacher/ExamFormPage'));
+const ExamDetailPage = lazy(() => import('./pages/teacher/ExamDetailPage'));
+const ExamResultsPage = lazy(() => import('./pages/teacher/ExamResultsPage'));
+const ExamBoardPage = lazy(() => import('./pages/public/ExamBoardPage'));
+const ExamIntroPage = lazy(() => import('./pages/public/ExamIntroPage'));
+const ExamRoomPage = lazy(() => import('./pages/public/ExamRoomPage'));
+const NotFoundPage = lazy(() => import('./pages/NotFoundPage'));
 
 export default function App() {
   return (
-    <Routes>
-      <Route element={<PublicLayout />}>
-        <Route path="/" element={<ExamBoardPage />} />
-        <Route path="/exam/:id" element={<ExamIntroPage />} />
-      </Route>
-      <Route path="/thi/:attemptId" element={<ExamRoomPage />} />
+    <Suspense fallback={<LoadingState fullPage label="Đang tải trang..." />}>
+      <Routes>
+        <Route element={<PublicLayout />}>
+          <Route path="/" element={<ExamBoardPage />} />
+          <Route path="/exam/:id" element={<ExamIntroPage />} />
+        </Route>
+        <Route path="/thi/:attemptId" element={<ExamRoomPage />} />
 
-      <Route path="/admin/login" element={<LoginPage role="ADMIN" />} />
-      <Route path="/teacher/login" element={<LoginPage role="TEACHER" />} />
+        <Route path="/admin/login" element={<LoginPage role="ADMIN" />} />
+        <Route path="/teacher/login" element={<LoginPage role="TEACHER" />} />
 
-      <Route
+        <Route
         path="/admin"
         element={
           <ProtectedRoute role="ADMIN">
@@ -57,9 +60,9 @@ export default function App() {
         <Route path="teachers/new" element={<TeacherCreatePage />} />
         <Route path="teachers/:id" element={<TeacherDetailPage />} />
         <Route path="teachers/:id/edit" element={<TeacherEditPage />} />
-      </Route>
+        </Route>
 
-      <Route
+        <Route
         path="/teacher"
         element={
           <ProtectedRoute role="TEACHER">
@@ -84,9 +87,10 @@ export default function App() {
         <Route path="exams/:id/results" element={<ExamResultsPage />} />
         <Route path="profile" element={<ProfilePage />} />
         <Route path="change-password" element={<ChangePasswordPage />} />
-      </Route>
+        </Route>
 
-      <Route path="*" element={<NotFoundPage />} />
-    </Routes>
+        <Route path="*" element={<NotFoundPage />} />
+      </Routes>
+    </Suspense>
   );
 }

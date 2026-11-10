@@ -271,12 +271,17 @@ function buildExamSummary(exam) {
 }
 
 function buildTakingView(attempt) {
-  const trueFalseScores = normalizeTrueFalseScores(attempt.exam.trueFalseScores);
-  const questionMap = new Map(attempt.exam.questions.map((question) => [question.id, question]));
+  const attemptQuestions = Array.isArray(attempt.questionSnapshot)
+    ? attempt.questionSnapshot
+    : attempt.exam.questions;
+  const trueFalseScores = normalizeTrueFalseScores(
+    attempt.trueFalseScoresSnapshot ?? attempt.exam.trueFalseScores
+  );
+  const questionMap = new Map(attemptQuestions.map((question) => [question.id, question]));
   const storedOrder = Array.isArray(attempt.questionOrder) ? attempt.questionOrder : [];
   const orderedIds = storedOrder.length
     ? storedOrder
-    : attempt.exam.questions.map((question) => question.id);
+    : attemptQuestions.map((question) => question.id);
   const optionOrders =
     attempt.optionOrders && typeof attempt.optionOrders === 'object'
       ? attempt.optionOrders
@@ -362,14 +367,19 @@ async function finalizeAttempt(attempt, answers, autoSubmitted = false) {
     return attempt;
   }
 
-  const safeAnswers = sanitizeAnswers(answers ?? attempt.answers, attempt.exam.questions);
+  const questions = Array.isArray(attempt.questionSnapshot)
+    ? attempt.questionSnapshot
+    : attempt.exam.questions;
+  const safeAnswers = sanitizeAnswers(answers ?? attempt.answers, questions);
   const answerMap = new Map(safeAnswers.map((answer) => [answer.questionId, answer]));
-  const trueFalseScores = normalizeTrueFalseScores(attempt.exam.trueFalseScores);
+  const trueFalseScores = normalizeTrueFalseScores(
+    attempt.trueFalseScoresSnapshot ?? attempt.exam.trueFalseScores
+  );
   let score = 0;
   let maxScore = 0;
   let correctCount = 0;
 
-  for (const question of attempt.exam.questions) {
+  for (const question of questions) {
     const grade = gradeQuestion(question, answerMap.get(question.id), trueFalseScores);
     maxScore += grade.maxPoints;
     score += grade.earnedPoints;
@@ -523,6 +533,18 @@ async function startAttempt(examId, { studentCode, accessCode }) {
         answers: [],
         questionOrder,
         optionOrders: buildOptionOrders(exam),
+        questionSnapshot: exam.questions.map((question) => ({
+          id: question.id,
+          content: question.content,
+          section: question.section,
+          options: question.options,
+          correctOption: question.correctOption,
+          statements: normalizeStatements(question.statements),
+          correctText: question.correctText || '',
+          points: question.points,
+          order: question.order,
+        })),
+        trueFalseScoresSnapshot: normalizeTrueFalseScores(exam.trueFalseScores),
         expiresAt,
       },
       include: attemptInclude,

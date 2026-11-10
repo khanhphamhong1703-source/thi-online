@@ -1,6 +1,7 @@
 const prisma = require('../../config/prisma');
 const ApiError = require('../../utils/ApiError');
 const { getPagination, paginationMeta } = require('../../utils/pagination');
+const { normalizeSearchText } = require('../../utils/search');
 const {
   classSelect,
   getExamClassIds,
@@ -362,7 +363,7 @@ async function getExamResults(examId, teacherId, { page, limit, search, status, 
   if (classStudentIds) where.studentId = { in: classStudentIds };
   if (status && status !== 'all') where.status = status;
   if (search) {
-    where.student = { is: { searchText: { contains: search.toLowerCase() } } };
+    where.student = { is: { searchText: { contains: normalizeSearchText(search) } } };
   }
 
   const [attempts, total] = await Promise.all([
@@ -459,6 +460,9 @@ async function getAttemptDetail(examId, attemptId, teacherId) {
   const attempt = await prisma.examAttempt.findFirst({
     where: { id: attemptId, examId },
     include: {
+      exam: {
+        select: { id: true, trueFalseScores: true },
+      },
       student: {
         select: {
           id: true,
@@ -474,16 +478,21 @@ async function getAttemptDetail(examId, attemptId, teacherId) {
     throw new ApiError(404, 'Không tìm thấy lượt làm bài');
   }
 
-  const questionMap = new Map(exam.questions.map((question) => [question.id, question]));
+  const attemptQuestions = Array.isArray(attempt.questionSnapshot)
+    ? attempt.questionSnapshot
+    : exam.questions;
+  const questionMap = new Map(attemptQuestions.map((question) => [question.id, question]));
   const storedOrder = Array.isArray(attempt.questionOrder) ? attempt.questionOrder : [];
   const orderedIds = storedOrder.length
     ? storedOrder
-    : exam.questions.map((question) => question.id);
+    : attemptQuestions.map((question) => question.id);
   const optionOrders =
     attempt.optionOrders && typeof attempt.optionOrders === 'object'
       ? attempt.optionOrders
       : {};
-  const trueFalseScores = normalizeTrueFalseScores(exam.trueFalseScores);
+  const trueFalseScores = normalizeTrueFalseScores(
+    attempt.trueFalseScoresSnapshot ?? attempt.exam.trueFalseScores
+  );
   const answerMap = new Map(
     normalizeAnswers(attempt.answers).map((answer) => [answer.questionId, answer])
   );

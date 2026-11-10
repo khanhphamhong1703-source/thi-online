@@ -1,6 +1,7 @@
 const prisma = require('../../config/prisma');
 const ApiError = require('../../utils/ApiError');
 const { getPagination, paginationMeta } = require('../../utils/pagination');
+const { normalizeSearchText } = require('../../utils/search');
 
 const teacherSelect = {
   id: true,
@@ -108,7 +109,7 @@ async function listClasses({ page, limit, search, status }) {
 async function listStudents({ page, limit, search }) {
   const { page: safePage, limit: safeLimit, skip } = getPagination(page, limit);
   const where = {};
-  if (search) where.searchText = { contains: search.toLowerCase() };
+  if (search) where.searchText = { contains: normalizeSearchText(search) };
 
   const [items, total] = await Promise.all([
     prisma.student.findMany({

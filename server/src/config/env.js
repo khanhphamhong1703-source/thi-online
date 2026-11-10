@@ -7,6 +7,7 @@ const envSchema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   PORT: z.coerce.number().int().positive().default(5000),
   CLIENT_URL: z.string().url().default('http://localhost:5173'),
+  CORS_EXTRA_ORIGINS: z.string().default(''),
   MONGODB_URI: z.string().min(1, 'Thiếu MONGODB_URI'),
   JWT_SECRET: z.string().min(32, 'JWT_SECRET phải có ít nhất 32 ký tự'),
   JWT_EXPIRES_IN: z.string().default('7d'),
