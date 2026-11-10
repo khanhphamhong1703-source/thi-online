@@ -1,5 +1,12 @@
 import api from './client';
 
+const DELETE_PATHS = {
+  teacher: 'teachers',
+  class: 'classes',
+  student: 'students',
+  exam: 'exams',
+};
+
 export const adminDataApi = {
   summary: () => api.get('/admin/data/summary'),
   listTeachers: (params) => api.get('/admin/data/teachers', { params }),
@@ -12,6 +19,7 @@ export const adminDataApi = {
   deleteClass: (id) => api.delete(`/admin/data/classes/${id}`),
   deleteStudent: (id) => api.delete(`/admin/data/students/${id}`),
   deleteExam: (id) => api.delete(`/admin/data/exams/${id}`),
+  deleteImpact: (type, id) => api.get(`/admin/data/${DELETE_PATHS[type]}/${id}/delete-impact`),
   exportBackup: () =>
     api.get('/admin/data/backup/export', {
       responseType: 'blob',

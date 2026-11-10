@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import {
+  ArrowRight,
   BookOpen,
   CalendarDays,
   Edit3,
@@ -184,7 +185,14 @@ export default function TeacherDetailPage() {
                   {teacher.classCount || 0} lớp học do giáo viên phụ trách
                 </p>
               </div>
-              <BookOpen className="h-5 w-5 text-slate-300" />
+              <Link
+                to={`/admin/data/classes?teacherId=${id}&teacherName=${encodeURIComponent(
+                  teacher.fullName
+                )}`}
+                className="inline-flex items-center gap-1 text-xs font-semibold text-brand-600 hover:text-brand-700"
+              >
+                Xem trong dữ liệu <ArrowRight className="h-3.5 w-3.5" />
+              </Link>
             </div>
             {teacher.recentClasses?.length ? (
               <ul className="divide-y divide-slate-100">

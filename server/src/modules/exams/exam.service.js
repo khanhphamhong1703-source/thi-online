@@ -24,6 +24,10 @@ const {
   getQuestionMaxPoints,
   gradeQuestion,
 } = require('./exam.grading');
+const {
+  finalizeExpiredAttempts,
+  regradeExamAttempts: regradeAttemptsData,
+} = require('./attempt.service');
 
 const examInclude = {
   class: { select: classSelect },
@@ -219,6 +223,7 @@ async function createExam(teacherId, payload) {
 
 async function updateExam(examId, teacherId, payload) {
   const existing = await assertExamOwner(examId, teacherId);
+  await finalizeExpiredAttempts({ examId });
   const inProgressAttempts = await prisma.examAttempt.count({
     where: { examId, status: 'IN_PROGRESS' },
   });
@@ -264,16 +269,28 @@ async function updateExam(examId, teacherId, payload) {
     });
 
     if (orderedQuestions) {
-      await transaction.question.deleteMany({ where: { examId } });
+      const existingQuestions = await transaction.question.findMany({
+        where: { examId },
+        select: { id: true },
+      });
+      const ownedIds = new Set(existingQuestions.map((question) => question.id));
+      const keepIds = orderedQuestions
+        .map((question) => question.id)
+        .filter((questionId) => questionId && ownedIds.has(questionId));
+      await transaction.question.deleteMany({
+        where: { examId, id: { notIn: keepIds } },
+      });
       for (let index = 0; index < orderedQuestions.length; index += 1) {
         const question = orderedQuestions[index];
-        await transaction.question.create({
-          data: {
-            examId,
-            ...buildQuestionData(question, trueFalseScores),
-            order: index,
-          },
-        });
+        const data = {
+          ...buildQuestionData(question, trueFalseScores),
+          order: index,
+        };
+        if (question.id && ownedIds.has(question.id)) {
+          await transaction.question.update({ where: { id: question.id }, data });
+        } else {
+          await transaction.question.create({ data: { examId, ...data } });
+        }
       }
     } else {
       await transaction.question.updateMany({
@@ -336,6 +353,7 @@ async function closeExam(examId, teacherId) {
     where: { examId, status: 'IN_PROGRESS' },
     data: { expiresAt: now },
   });
+  await finalizeExpiredAttempts({ examId });
 
   const classes = await getClassesByIds(getExamClassIds(updated));
   return decorateExam({ ...updated, classes });
@@ -351,10 +369,18 @@ async function deleteExam(examId, teacherId) {
     await transaction.question.deleteMany({ where: { examId } });
     await transaction.exam.delete({ where: { id: examId } });
   });
+
+  return {
+    id: exam.id,
+    title: exam.title,
+    questionCount: exam.questions?.length ?? 0,
+    attemptCount: exam._count?.attempts ?? 0,
+  };
 }
 
 async function getExamResults(examId, teacherId, { page, limit, search, status, classId }) {
   const exam = await assertExamOwner(examId, teacherId);
+  await finalizeExpiredAttempts({ examId });
   const examClassIds = getExamClassIds(exam);
   if (classId && !examClassIds.includes(classId)) {
     throw new ApiError(400, 'Lớp được chọn không thuộc đề thi');
@@ -660,6 +686,12 @@ async function getAttemptDetail(examId, attemptId, teacherId) {
   };
 }
 
+async function regradeExamAttempts(examId, teacherId) {
+  const exam = await assertExamOwner(examId, teacherId);
+  const regraded = await regradeAttemptsData(examId);
+  return { regraded, title: exam.title };
+}
+
 module.exports = {
   assertExamOwner,
   listExams,
@@ -670,6 +702,7 @@ module.exports = {
   closeExam,
   deleteExam,
   getExamResults,
+  regradeExamAttempts,
   getAttemptDetail,
   decorateExam,
   examInclude,

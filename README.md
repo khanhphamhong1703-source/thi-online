@@ -30,7 +30,7 @@ Học sinh chưa có tài khoản đăng nhập. Việc xác danh dựa trên m�
 
 - Đăng nhập, đổi mật khẩu, xem thông tin cá nhân.
 - Quản lý lớp học và học sinh.
-- Thêm học sinh thủ công với mã tự sinh dạng `HS0001`, `HS0002`...
+- Thêm học sinh thủ công với mã ngẫu nhiên do hệ thống cấp.
 - Import/export danh sách học sinh Excel.
 - Tạo đề thi trắc nghiệm gồm thông tin ca thi và danh sách câu hỏi.
 - Nhập câu hỏi từ file Word `.docx` hoặc văn bản `.txt`, chỉnh sửa trực tiếp và xem trước trước khi thêm.
@@ -64,7 +64,7 @@ Học sinh chưa có tài khoản đăng nhập. Việc xác danh dựa trên m�
 - Khóa/mở khóa tài khoản.
 - Đặt lại mật khẩu giáo viên.
 - Quản lý dữ liệu toàn hệ thống: xem giáo viên, lớp học, học sinh, đề thi; bao gồm tài khoản bị khóa và lớp đã lưu trữ.
-- Khôi phục lớp đã lưu trữ, mở khóa tài khoản và xoá vĩnh viễn dữ liệu có kiểm tra ràng buộc.
+- Khôi phục lớp đã lưu trữ, mở khóa tài khoản và xoá vĩnh viễn. Xoá giáo viên kéo theo lớp, học sinh trong lớp, toàn bộ bài làm và các đề thi do giáo viên tạo. Xoá lớp kéo theo học sinh và bài làm; đề thi không bị xoá, chỉ bỏ lớp đã xoá khỏi đề. Trước khi xoá, hệ thống hiển thị số liệu bị ảnh hưởng và cảnh báo (điểm/bài làm sẽ mất, lượt đang làm bị huỷ, mã được giải phóng).
 - Sao lưu toàn bộ dữ liệu ra JSON và nhập lại theo chế độ hợp nhất hoặc thay thế.
 
 ## 2. Công nghệ
@@ -234,6 +234,7 @@ Các đặc điểm của cấu hình production:
 
 - Chỉ map `${HTTPS_PORT}` ra ngoài; không publish `27017` (MongoDB) và `5050` (API).
 - `COOKIE_SECURE=true` và `TRUST_PROXY=1` cố định.
+- `client/nginx.conf` lấy IP người dùng thật từ header `CF-Connecting-IP` của Cloudflare (chỉ tin khi request đến từ mạng Docker nội bộ) rồi chuyển `X-Forwarded-For` xuống API. Nhờ vậy rate limit (đăng nhập, tra cứu ca thi) và IP trong lịch sử hoạt động tính theo từng người dùng, không bị gộp chung IP của container `cloudflared`. Khi sửa file này phải build lại container `client`.
 - Bắt buộc có `CLIENT_URL`, `JWT_SECRET` và `SEED_ADMIN_PASSWORD`; thiếu biến nào Compose sẽ dừng.
 - `SEED_ADMIN_RESET_PASSWORD=false`: khởi động lại container không ghi đè mật khẩu Admin đã đổi. Lần đầu trên database mới vẫn tạo Admin từ `SEED_ADMIN_PASSWORD`.
 - Log Docker được giới hạn `10m` mỗi file, giữ 3 file.
@@ -477,9 +478,9 @@ Class
 
 ### Mã học sinh
 
-- Thêm thủ công: backend tự sinh `HS0001`...`HS9999`.
+- Thêm thủ công: backend cấp mã ngẫu nhiên 6 ký tự (A–Z, 2–9; bỏ I, O, 0, 1).
 - Mã không thể chỉnh sửa sau khi tạo.
-- Import Excel giữ nguyên mã trong file và chuẩn hóa uppercase.
+- Import Excel: hệ thống cấp mã mới cho học sinh chưa tồn tại; mã có sẵn trong file chỉ dùng để nhận diện hồ sơ đã tồn tại.
 
 ## 8. API chính
 
@@ -514,6 +515,10 @@ Class
 | DELETE | `/api/admin/data/classes/:id` | Xoá vĩnh viễn lớp |
 | DELETE | `/api/admin/data/students/:id` | Xoá vĩnh viễn học sinh |
 | DELETE | `/api/admin/data/exams/:id` | Xoá vĩnh viễn đề thi |
+| GET | `/api/admin/data/teachers/:id/delete-impact` | Số liệu và cảnh báo trước khi xoá giáo viên |
+| GET | `/api/admin/data/classes/:id/delete-impact` | Số liệu và cảnh báo trước khi xoá lớp |
+| GET | `/api/admin/data/students/:id/delete-impact` | Số liệu và cảnh báo trước khi xoá học sinh |
+| GET | `/api/admin/data/exams/:id/delete-impact` | Số liệu và cảnh báo trước khi xoá đề |
 | GET | `/api/admin/data/backup/export` | Xuất toàn bộ dữ liệu ra file JSON |
 | POST | `/api/admin/data/backup/import` | Nhập file JSON, hỗ trợ `merge` hoặc `replace` |
 
@@ -575,7 +580,7 @@ Thời gian làm bài:
 expiresAt = min(now + duration, exam.closeAt)
 ```
 
-Khi hết thời gian hoặc ca bị đóng, backend tự chấm và chuyển lượt làm sang `AUTO_SUBMITTED`.
+Khi hết thời gian hoặc ca bị đóng, backend tự chấm và chuyển lượt làm sang `AUTO_SUBMITTED`. Lượt quá hạn được chốt khi giáo viên mở kết quả, xuất Excel, sửa đề, đóng ca hoặc bấm "Chấm lại" ở trang kết quả (không chạy bộ quét định kỳ), nên học sinh không nộp bài vẫn có điểm từ phần đã lưu. Không có gia hạn: đáp án gửi lên sau `expiresAt` bị bỏ qua, chỉ phần đã lưu trước giờ mới được chấm. Nút "Chấm lại" chấm lại toàn bộ bài đã nộp theo đáp án hiện tại của đề, dùng khi giáo viên sửa đáp án.
 
 ## 10. Chấm điểm và bảo mật
 
@@ -583,7 +588,7 @@ Khi hết thời gian hoặc ca bị đóng, backend tự chấm và chuyển l�
 - Điểm được tính ở backend; client không thể gửi điểm.
 - Mỗi câu trả lời được kiểm tra thuộc đề thi và đúng kiểu câu hỏi.
 - Phần I chấm theo đáp án duy nhất; Phần II chấm theo số ý đúng và thang `trueFalseScores`; Phần III chấm khớp chính xác đáp án ngắn.
-- Lượt làm có thể resume khi còn hạn; hết hạn sẽ tự nộp.
+- Lượt làm có thể resume khi còn hạn (kể cả sau khi mất mạng, đóng tab rồi nhập lại mã); hết hạn sẽ tự chấm.
 - Giới hạn số lượt làm bài.
 - Giáo viên chỉ truy cập đề/lớp/học sinh thuộc quyền sở hữu.
 - Mật khẩu băm bằng bcrypt.
@@ -652,16 +657,16 @@ Quy tắc:
 
 File `.xlsx`, tối đa 5MB, tối đa 2.000 dòng dữ liệu.
 
-| Mã học sinh | Họ và tên | Ngày sinh | SĐT | Email |
+| Mã học sinh (tuỳ chọn) | Họ và tên | Ngày sinh | SĐT | Email |
 |---|---|---|---|---|
-| HS001 | Nguyễn Văn An | 15/03/2008 | 0912345678 | an@gmail.com |
-| HS002 | Trần Thị Bình | 20/07/2008 | | |
-| HS003 | Lê Văn Cường | 10/11/2008 | 0987654321 | |
+| (để trống) | Nguyễn Văn An | 15/03/2008 | 0912345678 | an@gmail.com |
+| (để trống) | Trần Thị Bình | 20/07/2008 | | |
+| (để trống) | Lê Văn Cường | 10/11/2008 | 0987654321 | |
 
 Quy tắc:
 
-- Mã trong file được giữ nguyên, không sinh tự động.
-- Bắt buộc: mã học sinh, họ tên, ngày sinh.
+- Để trống mã: hệ thống cấp mã ngẫu nhiên cho học sinh mới.
+- Bắt buộc: họ tên, ngày sinh.
 - Ngày sinh hỗ trợ `dd/mm/yyyy`, `dd-mm-yyyy`, `yyyy-mm-dd` hoặc ô ngày Excel.
 - SĐT: 10–11 số, bắt đầu bằng `0` hoặc `+84`.
 - Email phải đúng định dạng nếu có.
@@ -683,7 +688,7 @@ Quy tắc:
 
 1. Đăng nhập giáo viên.
 2. Tạo lớp, tạo trùng mã lớp.
-3. Thêm học sinh không nhập mã → nhận `HSxxxx`.
+3. Thêm học sinh không nhập mã → nhận mã ngẫu nhiên 6 ký tự.
 4. Sửa học sinh, mã không đổi.
 5. Import/export Excel.
 6. Giáo viên B không truy cập lớp/đề của giáo viên A.

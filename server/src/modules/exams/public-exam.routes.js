@@ -14,9 +14,31 @@ const {
 
 const router = express.Router();
 
+const WINDOW_MS = 15 * 60 * 1000;
+
+// Giới hạn theo từng học sinh (mã ca thi + mã học sinh) thay vì theo IP, vì cả lớp
+// hoặc cả trường thường dùng chung một IP công cộng.
+function studentKey(req) {
+  const accessCode = String(req.body?.accessCode || '').trim().toUpperCase();
+  const studentCode = String(req.body?.studentCode || '').trim().toUpperCase();
+  return `${accessCode}:${studentCode}`;
+}
+
 const clientLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  limit: 600,
+  windowMs: WINDOW_MS,
+  limit: 3000,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: {
+    success: false,
+    message: 'Bạn đã gửi quá nhiều yêu cầu. Vui lòng thử lại sau.',
+  },
+});
+
+const studentLimiter = rateLimit({
+  windowMs: WINDOW_MS,
+  limit: 60,
+  keyGenerator: studentKey,
   standardHeaders: true,
   legacyHeaders: false,
   message: {
@@ -26,15 +48,13 @@ const clientLimiter = rateLimit({
 });
 
 const identityFailureLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  limit: 8,
+  windowMs: WINDOW_MS,
+  limit: 10,
   skipSuccessfulRequests: true,
-  keyGenerator(req) {
-    const ip = req.ip;
-    const accessCode = String(req.body?.accessCode || '').trim().toUpperCase();
-    const studentCode = String(req.body?.studentCode || '').trim().toUpperCase();
-    return `${ip}:${accessCode}:${studentCode}`;
-  },
+  // Chỉ đếm lần sai mã ca thi/mã học sinh; lỗi nghiệp vụ (ca chưa mở, đã kết thúc,
+  // hết lượt, dữ liệu không hợp lệ) không được tính vào hạn mức.
+  requestWasSuccessful: (_req, res) => ![401, 403, 404].includes(res.statusCode),
+  keyGenerator: studentKey,
   standardHeaders: true,
   legacyHeaders: false,
   message: {
@@ -47,6 +67,7 @@ router.get('/exams', validate({ query: publicExamsQuerySchema }), publicExamCont
 router.post(
   '/exams/lookup',
   clientLimiter,
+  studentLimiter,
   identityFailureLimiter,
   validate({ body: startAttemptSchema }),
   publicExamController.lookupExam
@@ -55,6 +76,7 @@ router.get('/exams/:id', validate({ params: examIdSchema }), publicExamControlle
 router.post(
   '/exams/:id/start',
   clientLimiter,
+  studentLimiter,
   identityFailureLimiter,
   validate({ params: examIdSchema, body: startAttemptSchema }),
   publicExamController.startAttempt

@@ -8,9 +8,11 @@ export default function ConfirmDialog({
   onConfirm,
   title,
   description,
+  children,
   confirmLabel = 'Xác nhận',
   cancelLabel = 'Hủy',
   loading = false,
+  confirmDisabled = false,
   tone = 'danger',
 }) {
   return (
@@ -24,7 +26,7 @@ export default function ConfirmDialog({
           <Button variant="secondary" onClick={onClose} disabled={loading}>
             {cancelLabel}
           </Button>
-          <Button variant={tone} onClick={onConfirm} loading={loading}>
+          <Button variant={tone} onClick={onConfirm} loading={loading} disabled={confirmDisabled}>
             {confirmLabel}
           </Button>
         </>
@@ -40,7 +42,12 @@ export default function ConfirmDialog({
         >
           <AlertTriangle className="h-5 w-5" />
         </div>
-        <p className="pt-1 text-sm leading-6 text-slate-600">{description}</p>
+        <div className="min-w-0 flex-1 space-y-3">
+          {description ? (
+            <p className="pt-1 text-sm leading-6 text-slate-600">{description}</p>
+          ) : null}
+          {children}
+        </div>
       </div>
     </Modal>
   );

@@ -7,9 +7,11 @@ import {
   ClipboardList,
   Database,
   GraduationCap,
+  History,
   LayoutDashboard,
   LogOut,
   Menu,
+  Settings,
   ShieldCheck,
   UserRound,
   Users,
@@ -23,12 +25,19 @@ const NAVIGATION = {
   ADMIN: [
     { to: '/admin', label: 'Tổng quan', icon: LayoutDashboard, end: true },
     { to: '/admin/teachers', label: 'Quản lý giáo viên', icon: Users },
-    { to: '/admin/data', label: 'Quản lý dữ liệu', icon: Database },
+    {
+      to: '/admin/data',
+      label: 'Dữ liệu toàn hệ thống',
+      icon: Database,
+    },
+    { to: '/admin/activity', label: 'Lịch sử hoạt động', icon: History },
+    { to: '/admin/settings', label: 'Hệ thống', icon: Settings },
   ],
   TEACHER: [
     { to: '/teacher', label: 'Tổng quan', icon: LayoutDashboard, end: true },
     { to: '/teacher/classes', label: 'Quản lý lớp học', icon: BookOpen },
     { to: '/teacher/exams', label: 'Quản lý đề thi', icon: ClipboardList },
+    { to: '/teacher/activity', label: 'Lịch sử hoạt động', icon: History },
     { to: '/teacher/profile', label: 'Thông tin cá nhân', icon: UserRound },
   ],
 };
@@ -48,10 +57,16 @@ export default function AppLayout({ role }) {
     { prefix: '/teacher/students', label: 'Quản lý lớp học' },
     { prefix: '/teacher/change-password', label: 'Thông tin cá nhân' },
   ];
+  const activeNavItem = navItems.find((item) =>
+    item.end ? location.pathname === item.to : location.pathname.startsWith(item.to)
+  );
+  const activeChild = activeNavItem?.children?.find((child) =>
+    child.end ? location.pathname === child.to : location.pathname.startsWith(child.to)
+  );
   const currentLabel =
-    navItems.find((item) =>
-      item.end ? location.pathname === item.to : location.pathname.startsWith(item.to)
-    )?.label ||
+    (activeNavItem && activeChild
+      ? `${activeNavItem.label} · ${activeChild.label}`
+      : activeNavItem?.label) ||
     extraLabels.find((item) => location.pathname.startsWith(item.prefix))?.label ||
     'Không gian làm việc';
   const examEditMatch =
@@ -125,9 +140,10 @@ export default function AppLayout({ role }) {
         </p>
       </div>
 
-      <nav className="flex-1 space-y-1 px-3">
+      <nav className="min-h-0 flex-1 space-y-1 overflow-y-auto px-3">
         {navItems.map((item) => {
           const Icon = item.icon;
+
           return (
             <NavLink
               key={item.to}
@@ -189,7 +205,7 @@ export default function AppLayout({ role }) {
   );
 
   return (
-    <div className="min-h-screen bg-slate-50">
+    <div className="h-dvh overflow-hidden bg-slate-50">
       <aside className="fixed inset-y-0 left-0 z-30 hidden w-64 lg:block">{sidebar}</aside>
 
       <div
@@ -223,8 +239,8 @@ export default function AppLayout({ role }) {
         </aside>
       </div>
 
-      <div className="lg:pl-64">
-        <header className="sticky top-0 z-20 flex h-16 items-center justify-between border-b border-slate-200/80 bg-white/90 px-4 backdrop-blur sm:px-6">
+      <div className="flex h-full min-w-0 flex-col lg:pl-64">
+        <header className="z-20 flex h-16 shrink-0 items-center justify-between border-b border-slate-200/80 bg-white/90 px-4 backdrop-blur sm:px-6">
           <div className="flex items-center gap-3">
             <button
               type="button"
@@ -270,14 +286,16 @@ export default function AppLayout({ role }) {
           </div>
         </header>
 
-        <main className="mx-auto w-full max-w-7xl px-4 py-6 sm:px-6 sm:py-8">
-          <Outlet />
-        </main>
+        <div className="min-h-0 flex-1 overflow-y-auto">
+          <main className="mx-auto w-full max-w-7xl px-4 py-6 sm:px-6 sm:py-8">
+            <Outlet />
+          </main>
 
-        <footer className="mx-auto flex w-full max-w-7xl items-center justify-between px-4 pb-6 text-xs text-slate-400 sm:px-6">
-          <span>ViExam · Quản lý lớp học và đề thi trực tuyến</span>
-          <span className="hidden sm:inline">Năm học hiệu quả</span>
-        </footer>
+          <footer className="mx-auto flex w-full max-w-7xl items-center justify-between px-4 pb-6 text-xs text-slate-400 sm:px-6">
+            <span>ViExam · Quản lý lớp học và đề thi trực tuyến</span>
+            <span className="hidden sm:inline">Năm học hiệu quả</span>
+          </footer>
+        </div>
       </div>
     </div>
   );

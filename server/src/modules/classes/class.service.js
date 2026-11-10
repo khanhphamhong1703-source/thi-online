@@ -121,6 +121,7 @@ async function archiveClass(classId, teacherId) {
   return prisma.class.update({
     where: { id: classId },
     data: { isArchived: true },
+    include: { _count: { select: { enrollments: true } } },
   });
 }
 

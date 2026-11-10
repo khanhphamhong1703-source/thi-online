@@ -279,6 +279,43 @@ export default function ImportExcelPage() {
               </div>
             </div>
 
+            {result.students?.length ? (
+              <div className="mt-6">
+                <div className="flex items-center justify-between gap-3">
+                  <h3 className="text-sm font-semibold text-slate-900">
+                    Mã học sinh đã cấp
+                  </h3>
+                  <span className="text-xs text-slate-500">{result.students.length} học sinh</span>
+                </div>
+                <div className="mt-3 max-h-80 overflow-auto rounded-xl border border-slate-200">
+                  <table className="w-full text-sm">
+                    <thead className="sticky top-0 z-10 bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
+                      <tr>
+                        <th className="px-3 py-2 font-semibold">Họ và tên</th>
+                        <th className="px-3 py-2 font-semibold">Mã học sinh</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {result.students.map((item) => (
+                        <tr
+                          key={`${item.rowNumber}-${item.studentCode}`}
+                          className="border-t border-slate-100"
+                        >
+                          <td className="px-3 py-2 text-slate-700">{item.fullName}</td>
+                          <td className="px-3 py-2 font-mono text-base font-semibold tracking-wide text-slate-900">
+                            {item.studentCode}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                <p className="mt-2 text-xs text-slate-500">
+                  Tải danh sách lớp để in phiếu mã phát cho học sinh.
+                </p>
+              </div>
+            ) : null}
+
             {result.errors?.length ? (
               <div className="mt-6 rounded-xl border border-rose-200 bg-rose-50 p-4">
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -323,7 +360,8 @@ export default function ImportExcelPage() {
             <div className="surface p-5">
               <h3 className="text-sm font-semibold text-slate-900">Xử lý dữ liệu trùng</h3>
               <ul className="mt-3 space-y-2.5 text-sm leading-6 text-slate-500">
-                <li>Mã chưa tồn tại: tạo học sinh mới và thêm vào lớp.</li>
+                <li>Không có mã: hệ thống cấp mã ngẫu nhiên cho học sinh mới.</li>
+                <li>Mã chưa tồn tại: hệ thống cấp mã mới, không dùng mã trong file.</li>
                 <li>Mã đã tồn tại ngoài lớp: dùng hồ sơ cũ, thêm vào lớp.</li>
                 <li>Mã đã thuộc lớp: bỏ qua.</li>
                 <li>Mã trùng trong file: báo lỗi để xử lý.</li>
@@ -443,7 +481,7 @@ export default function ImportExcelPage() {
                           <tr key={row.rowNumber} className="table-row">
                             <td className="px-3 py-3 text-slate-500">{row.rowNumber}</td>
                             <td className="px-3 py-3 font-medium text-slate-700">
-                              {row.studentCode || '—'}
+                              {row.studentCode || (row.status === 'new' ? 'Sẽ cấp' : '—')}
                             </td>
                             <td className="px-3 py-3 text-slate-700">{row.fullName || '—'}</td>
                             <td className="px-3 py-3 text-slate-600">
@@ -528,7 +566,7 @@ export default function ImportExcelPage() {
                   </thead>
                   <tbody className="text-slate-600">
                     <tr className="border-t border-slate-100">
-                      <td className="px-2 py-2">HS001</td>
+                      <td className="px-2 py-2">(để trống)</td>
                       <td className="px-2 py-2">Nguyễn Văn An</td>
                       <td className="px-2 py-2">15/03/2008</td>
                       <td className="px-2 py-2">0912345678</td>
@@ -539,7 +577,11 @@ export default function ImportExcelPage() {
               </div>
               <ul className="mt-3 space-y-1.5 text-xs leading-5 text-slate-500">
                 <li>Header nằm ở dòng đầu tiên.</li>
-                <li>Bắt buộc: Mã học sinh, Họ và tên, Ngày sinh.</li>
+                <li>Bắt buộc: Họ và tên, Ngày sinh.</li>
+                <li>
+                  Mã học sinh là tuỳ chọn: để trống để hệ thống cấp mã ngẫu nhiên; nếu điền mã đã
+                  tồn tại thì dùng lại hồ sơ học sinh đó.
+                </li>
                 <li>Ngày sinh hỗ trợ dd/mm/yyyy hoặc định dạng ngày của Excel.</li>
                 <li>SĐT và Email có thể để trống nhưng phải đúng định dạng nếu có.</li>
               </ul>

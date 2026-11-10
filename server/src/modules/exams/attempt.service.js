@@ -418,8 +418,8 @@ async function finalizeAttempt(attempt, answers, autoSubmitted = false) {
     }
   }
 
-  return prisma.examAttempt.update({
-    where: { id: attempt.id },
+  const result = await prisma.examAttempt.updateMany({
+    where: { id: attempt.id, status: ATTEMPT_STATUS.IN_PROGRESS },
     data: {
       answers: safeAnswers,
       status: autoSubmitted ? ATTEMPT_STATUS.AUTO_SUBMITTED : ATTEMPT_STATUS.SUBMITTED,
@@ -428,6 +428,15 @@ async function finalizeAttempt(attempt, answers, autoSubmitted = false) {
       correctCount,
       submittedAt: new Date(),
     },
+  });
+  if (!result.count) {
+    return prisma.examAttempt.findUnique({
+      where: { id: attempt.id },
+      include: attemptInclude,
+    });
+  }
+  return prisma.examAttempt.findUnique({
+    where: { id: attempt.id },
     include: attemptInclude,
   });
 }
@@ -438,6 +447,91 @@ function attemptExpired(attempt, now = new Date()) {
     now >= new Date(attempt.exam.closeAt) ||
     attempt.exam.status === EXAM_STATUS.CLOSED
   );
+}
+
+async function finalizeExpiredAttempts({ examId, limit = 200 } = {}) {
+  const expired = await prisma.examAttempt.findMany({
+    where: {
+      status: ATTEMPT_STATUS.IN_PROGRESS,
+      expiresAt: { lte: new Date() },
+      ...(examId ? { examId } : {}),
+    },
+    orderBy: { expiresAt: 'asc' },
+    take: limit,
+    include: attemptInclude,
+  });
+
+  let finalized = 0;
+  for (const attempt of expired) {
+    await finalizeAttempt(attempt, attempt.answers, true);
+    finalized += 1;
+  }
+  return finalized;
+}
+
+async function regradeExamAttempts(examId) {
+  await finalizeExpiredAttempts({ examId });
+  const exam = await prisma.exam.findUnique({
+    where: { id: examId },
+    select: { id: true, questions: true, trueFalseScores: true },
+  });
+  if (!exam) {
+    throw new ApiError(404, 'Không tìm thấy đề thi');
+  }
+
+  const currentQuestions = new Map(exam.questions.map((question) => [question.id, question]));
+  const trueFalseScores = normalizeTrueFalseScores(exam.trueFalseScores);
+  const attempts = await prisma.examAttempt.findMany({
+    where: {
+      examId,
+      status: { in: [ATTEMPT_STATUS.SUBMITTED, ATTEMPT_STATUS.AUTO_SUBMITTED] },
+    },
+    select: {
+      id: true,
+      answers: true,
+      questionOrder: true,
+      questionSnapshot: true,
+    },
+  });
+
+  let regraded = 0;
+  for (const attempt of attempts) {
+    const order =
+      Array.isArray(attempt.questionOrder) && attempt.questionOrder.length
+        ? attempt.questionOrder
+        : Array.isArray(attempt.questionSnapshot)
+          ? attempt.questionSnapshot.map((question) => question.id)
+          : [];
+    const questions = order
+      .map((questionId) => currentQuestions.get(questionId))
+      .filter(Boolean);
+    if (!questions.length) continue;
+
+    const safeAnswers = sanitizeAnswers(attempt.answers, questions);
+    const answerMap = new Map(safeAnswers.map((answer) => [answer.questionId, answer]));
+    let score = 0;
+    let maxScore = 0;
+    let correctCount = 0;
+    for (const question of questions) {
+      const grade = gradeQuestion(question, answerMap.get(question.id), trueFalseScores);
+      maxScore += grade.maxPoints;
+      score += grade.earnedPoints;
+      if (grade.isCorrect) correctCount += 1;
+    }
+
+    await prisma.examAttempt.update({
+      where: { id: attempt.id },
+      data: {
+        answers: safeAnswers,
+        score: roundScore(score),
+        maxScore: roundScore(maxScore),
+        correctCount,
+      },
+    });
+    regraded += 1;
+  }
+
+  return regraded;
 }
 
 async function getAttemptForStudent(attemptId) {
@@ -514,12 +608,11 @@ async function startAttempt(examId, { studentCode, accessCode }) {
         ...buildTakingView(inProgress),
       };
     }
-    await finalizeAttempt(inProgress, inProgress.answers, true);
-    attempts = await prisma.examAttempt.findMany({
-      where: { examId, studentId: student.id },
-      orderBy: { attemptNumber: 'desc' },
-      include: attemptInclude,
-    });
+    const finalized = await finalizeAttempt(inProgress, inProgress.answers, true);
+    return {
+      token: signAttemptToken(finalized.id),
+      ...buildResultView(finalized),
+    };
   }
 
   if (exam.maxAttempts > 0 && attempts.length >= exam.maxAttempts) {
@@ -629,7 +722,8 @@ async function submitAttempt(attemptId, answers) {
   }
 
   const autoSubmitted = attemptExpired(attempt);
-  const finalAnswers = answers ?? attempt.answers;
+  // Quá hạn thì chỉ chấm phần đã kịp lưu, không nhận đáp án gửi thêm sau giờ.
+  const finalAnswers = autoSubmitted ? attempt.answers : answers ?? attempt.answers;
   attempt = await finalizeAttempt(attempt, finalAnswers, autoSubmitted);
   return buildResultView(attempt);
 }
@@ -667,4 +761,6 @@ module.exports = {
   saveAttemptAnswers,
   submitAttempt,
   recordAttemptExit,
+  finalizeExpiredAttempts,
+  regradeExamAttempts,
 };

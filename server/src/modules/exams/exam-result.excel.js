@@ -6,6 +6,7 @@ const {
   getClassesByIds,
   getClassStudentIds,
 } = require('./exam.classes');
+const { finalizeExpiredAttempts } = require('./attempt.service');
 
 const STATUS_LABELS = {
   IN_PROGRESS: 'Đang làm',
@@ -61,6 +62,7 @@ async function buildExportBuffer(examId, teacherId, classId) {
   }
   const classStudentIds = classId ? await getClassStudentIds(classId) : null;
   const classMap = new Map(classes.map((classroom) => [classroom.id, classroom]));
+  await finalizeExpiredAttempts({ examId });
   const attempts = await prisma.examAttempt.findMany({
     where: {
       examId,
@@ -218,6 +220,8 @@ async function buildExportBuffer(examId, teacherId, classId) {
     fileName: `bang-diem-${safeFileName(exam.title)}${
       selectedClass ? `-${safeFileName(selectedClass.classCode || selectedClass.name)}` : ''
     }.xlsx`,
+    examTitle: exam.title,
+    attemptCount: rows.length,
   };
 }
 

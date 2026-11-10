@@ -17,6 +17,7 @@ const statementSchema = z.object({
 
 const questionSchema = z
   .object({
+    id: objectId.optional(),
     content: z
       .string()
       .trim()

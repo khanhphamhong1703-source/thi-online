@@ -62,7 +62,7 @@ export default function ExamBoardPage() {
   };
 
   return (
-    <div className="relative overflow-hidden bg-navy-950 h-[calc(100vh-65px)]">
+    <div className="relative h-full overflow-hidden bg-navy-950">
       <div className="absolute -left-24 top-0 h-80 w-80 rounded-full bg-brand-600/20 blur-3xl" />
       <div className="absolute -right-24 bottom-0 h-96 w-96 rounded-full bg-cyan-400/10 blur-3xl" />
       <div className="relative mx-auto flex max-w-6xl items-center px-4 py-12 sm:px-6 sm:py-16">
@@ -124,7 +124,7 @@ export default function ExamBoardPage() {
                   <UserRound className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
                   <Input
                     id="studentCode"
-                    placeholder="HSxxxx"
+                    placeholder="Ví dụ: 7K2M9Q"
                     autoComplete="off"
                     className="pl-9 uppercase"
                     invalid={Boolean(errors.studentCode)}

@@ -19,6 +19,7 @@ const listTeachers = listHandler(adminDataService.listTeachers);
 const listClasses = listHandler(adminDataService.listClasses);
 const listStudents = listHandler(adminDataService.listStudents);
 const listExams = listHandler(adminDataService.listExams);
+const listActivity = listHandler(adminDataService.listActivity);
 
 const restoreClass = asyncHandler(async (req, res) => {
   const data = await adminDataService.restoreClass(req.params.id);
@@ -49,6 +50,18 @@ const deleteExam = asyncHandler(async (req, res) => {
   const data = await adminDataService.deleteExam(req.params.id);
   res.json({ success: true, message: 'Đã xoá vĩnh viễn đề thi', data });
 });
+
+function deleteImpactHandler(type) {
+  return asyncHandler(async (req, res) => {
+    const data = await adminDataService.getDeleteImpact(type, req.params.id);
+    res.json({ success: true, data });
+  });
+}
+
+const getTeacherDeleteImpact = deleteImpactHandler('teacher');
+const getClassDeleteImpact = deleteImpactHandler('class');
+const getStudentDeleteImpact = deleteImpactHandler('student');
+const getExamDeleteImpact = deleteImpactHandler('exam');
 
 const exportBackup = asyncHandler(async (_req, res) => {
   const backup = await adminBackupService.exportBackup();
@@ -88,12 +101,17 @@ module.exports = {
   listClasses,
   listStudents,
   listExams,
+  listActivity,
   restoreClass,
   archiveClass,
   deleteTeacher,
   deleteClass,
   deleteStudent,
   deleteExam,
+  getTeacherDeleteImpact,
+  getClassDeleteImpact,
+  getStudentDeleteImpact,
+  getExamDeleteImpact,
   exportBackup,
   importBackup,
 };

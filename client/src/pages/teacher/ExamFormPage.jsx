@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
@@ -21,6 +21,7 @@ import { examApi } from '../../api/exams';
 import { getErrorMessage } from '../../api/client';
 import { useToast } from '../../contexts/ToastContext';
 import { defaultExamWindow, toDateTimeLocalValue } from '../../utils/exam';
+import { SHORT_ANSWER_PATTERNS, distributeShortAnswer } from '../../utils/shortAnswer';
 import FormField from '../../components/FormField';
 import Input from '../../components/Input';
 import Textarea from '../../components/Textarea';
@@ -33,8 +34,6 @@ const SECTIONS = ['I', 'II', 'III'];
 const SECTION_ORDER = { I: 0, II: 1, III: 2 };
 const OPTION_LETTERS = ['A', 'B', 'C', 'D'];
 const DEFAULT_TRUE_FALSE_SCORES = [0.1, 0.25, 0.5, 1];
-const SHORT_ANSWER_PATTERNS = [/^[0-9-]$/, /^[0-9,]$/, /^[0-9,]$/, /^[0-9]$/];
-
 const schema = z
   .object({
     title: z.string().trim().min(3, 'Tên đề thi phải có ít nhất 3 ký tự').max(200),
@@ -265,6 +264,7 @@ export default function ExamFormPage({ mode }) {
           const loadedQuestions = sortQuestionsBySection(
             (exam.questions || []).map((question) => ({
               clientId: makeClientId(),
+              remoteId: question.id,
               section: SECTIONS.includes(question.section) ? question.section : 'I',
               content: question.content,
               options:
@@ -463,6 +463,19 @@ export default function ExamFormPage({ mode }) {
     );
   };
 
+  const correctBoxRefs = useRef({});
+  const focusCorrectBox = (questionIndex, boxIndex) => {
+    correctBoxRefs.current[`${questionIndex}-${boxIndex}`]?.focus();
+  };
+
+  const updateCorrectBoxes = (questionIndex, boxes) => {
+    setQuestions((current) =>
+      current.map((question, index) =>
+        index === questionIndex ? { ...question, correctBoxes: boxes } : question
+      )
+    );
+  };
+
   const updateCorrectBox = (questionIndex, boxIndex, value) => {
     const char = String(value || '').slice(-1);
     if (char && !SHORT_ANSWER_PATTERNS[boxIndex].test(char)) return;
@@ -623,6 +636,7 @@ export default function ExamFormPage({ mode }) {
         sectionTitles,
         questions: questions.map((question) => {
           const base = {
+            id: question.remoteId || undefined,
             section: question.section,
             content: question.content.trim(),
             points:
@@ -855,7 +869,7 @@ export default function ExamFormPage({ mode }) {
                     <section
                       key={group.section}
                       id={`section-${group.section}`}
-                      className="scroll-mt-24"
+                      className="scroll-mt-6"
                     >
                       <div className="flex flex-col gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2.5 shadow-sm sm:flex-row sm:items-center sm:justify-between sm:px-4">
                         <div className="flex min-w-0 flex-1 items-center gap-3">
@@ -985,7 +999,7 @@ export default function ExamFormPage({ mode }) {
                                 <article
                                   key={question.clientId}
                                   id={`question-${question.clientId}`}
-                                  className="scroll-mt-24 overflow-hidden rounded-lg border border-slate-200"
+                                  className="scroll-mt-6 overflow-hidden rounded-lg border border-slate-200"
                                 >
                                   <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 bg-white px-3 py-2">
                                     <div className="flex flex-wrap items-center gap-1.5">
@@ -1231,18 +1245,67 @@ export default function ExamFormPage({ mode }) {
                                             {Array.from({ length: 4 }, (_, boxIndex) => (
                                               <input
                                                 key={boxIndex}
+                                                ref={(node) => {
+                                                  correctBoxRefs.current[`${questionIndex}-${boxIndex}`] = node;
+                                                }}
                                                 type="text"
                                                 inputMode="numeric"
                                                 maxLength={1}
                                                 value={question.correctBoxes?.[boxIndex] || ''}
                                                 aria-label={`Ô đáp án ${boxIndex + 1} của câu ${questionIndex + 1}`}
-                                                onChange={(event) =>
-                                                  updateCorrectBox(
-                                                    questionIndex,
-                                                    boxIndex,
-                                                    event.target.value
-                                                  )
-                                                }
+                                                onChange={(event) => {
+                                                  const raw = String(event.target.value || '');
+                                                  if (raw.length > 1) {
+                                                    const { boxes, nextIndex } =
+                                                      distributeShortAnswer(raw);
+                                                    updateCorrectBoxes(questionIndex, boxes);
+                                                    focusCorrectBox(questionIndex, nextIndex);
+                                                    return;
+                                                  }
+                                                  updateCorrectBox(questionIndex, boxIndex, raw);
+                                                  if (raw && boxIndex < 3) {
+                                                    focusCorrectBox(questionIndex, boxIndex + 1);
+                                                  }
+                                                }}
+                                                onPaste={(event) => {
+                                                  const text =
+                                                    event.clipboardData?.getData('text') || '';
+                                                  if (!text) return;
+                                                  event.preventDefault();
+                                                  const { boxes, nextIndex } =
+                                                    distributeShortAnswer(text);
+                                                  updateCorrectBoxes(questionIndex, boxes);
+                                                  focusCorrectBox(questionIndex, nextIndex);
+                                                }}
+                                                onKeyDown={(event) => {
+                                                  const current =
+                                                    question.correctBoxes?.[boxIndex] || '';
+                                                  if (
+                                                    event.key === 'Backspace' &&
+                                                    !current &&
+                                                    boxIndex > 0
+                                                  ) {
+                                                    event.preventDefault();
+                                                    const boxes = [
+                                                      ...(question.correctBoxes || ['', '', '', '']),
+                                                    ];
+                                                    boxes[boxIndex - 1] = '';
+                                                    updateCorrectBoxes(questionIndex, boxes);
+                                                    focusCorrectBox(questionIndex, boxIndex - 1);
+                                                  } else if (
+                                                    event.key === 'ArrowLeft' &&
+                                                    boxIndex > 0
+                                                  ) {
+                                                    event.preventDefault();
+                                                    focusCorrectBox(questionIndex, boxIndex - 1);
+                                                  } else if (
+                                                    event.key === 'ArrowRight' &&
+                                                    boxIndex < 3
+                                                  ) {
+                                                    event.preventDefault();
+                                                    focusCorrectBox(questionIndex, boxIndex + 1);
+                                                  }
+                                                }}
                                                 className="h-10 w-10 rounded-lg border border-slate-300 bg-white text-center text-base font-bold text-slate-900 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-100"
                                               />
                                             ))}
@@ -1271,7 +1334,7 @@ export default function ExamFormPage({ mode }) {
                 </div>
               </div>
 
-              <aside className="hidden self-start lg:sticky lg:top-24 lg:z-50 lg:block">
+              <aside className="hidden self-start lg:sticky lg:top-6 lg:z-50 lg:block">
                 {navigator}
               </aside>
             </div>

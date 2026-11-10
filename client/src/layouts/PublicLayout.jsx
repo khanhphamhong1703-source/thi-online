@@ -3,8 +3,8 @@ import { ArrowRight, GraduationCap } from 'lucide-react';
 
 export default function PublicLayout() {
   return (
-    <div className="flex min-h-screen flex-col bg-slate-50">
-      <header className="sticky top-0 z-30 border-b border-slate-200/80 bg-white/90 backdrop-blur">
+    <div className="flex h-dvh flex-col overflow-hidden bg-slate-50">
+      <header className="z-30 shrink-0 border-b border-slate-200/80 bg-white/90 backdrop-blur">
         <div className="mx-auto flex h-16 w-full max-w-7xl items-center justify-between px-4 sm:px-6">
           <Link to="/" className="flex items-center gap-2.5">
             <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-navy-950 text-white">
@@ -29,7 +29,7 @@ export default function PublicLayout() {
         </div>
       </header>
 
-      <main className="flex-1">
+      <main className="min-h-0 flex-1 overflow-y-auto">
         <Outlet />
       </main>
 

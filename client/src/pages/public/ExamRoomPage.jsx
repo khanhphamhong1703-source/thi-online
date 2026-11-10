@@ -19,7 +19,13 @@ import {
 } from 'lucide-react';
 import { publicExamApi } from '../../api/publicExams';
 import { getErrorMessage } from '../../api/client';
-import { getAttemptToken } from '../../utils/attemptStorage';
+import {
+  getAttemptDraft,
+  getAttemptToken,
+  removeAttemptDraft,
+  saveAttemptDraft,
+} from '../../utils/attemptStorage';
+import { SHORT_ANSWER_PATTERNS, distributeShortAnswer } from '../../utils/shortAnswer';
 import {
   enterExamFullscreen,
   exitExamFullscreen,
@@ -30,8 +36,6 @@ import { formatDateTime } from '../../utils/format';
 import Badge from '../../components/Badge';
 import Button from '../../components/Button';
 import ConfirmDialog from '../../components/ConfirmDialog';
-
-const SHORT_ANSWER_PATTERNS = [/^[0-9-]$/, /^[0-9,]$/, /^[0-9,]$/, /^[0-9]$/];
 
 function formatRemaining(milliseconds) {
   const totalSeconds = Math.max(0, Math.floor(milliseconds / 1000));
@@ -86,6 +90,9 @@ function QuestionPrompt({
   sectionTitle,
 }) {
   const isChoice = question.section !== 'II' && question.section !== 'III';
+  const boxRefs = useRef([]);
+  const focusBox = (boxIndex) => boxRefs.current[boxIndex]?.focus();
+
   return (
     <>
       <div className="flex items-center justify-between gap-3">
@@ -194,19 +201,56 @@ function QuestionPrompt({
             {Array.from({ length: 4 }, (_, boxIndex) => (
               <input
                 key={boxIndex}
+                ref={(node) => {
+                  boxRefs.current[boxIndex] = node;
+                }}
                 type="text"
                 inputMode="numeric"
                 maxLength={1}
                 value={Array.isArray(answer) ? answer[boxIndex] || '' : ''}
                 aria-label={`Ô đáp án ${boxIndex + 1}`}
                 onChange={(event) => {
-                  const char = String(event.target.value || '').slice(-1);
+                  const raw = String(event.target.value || '');
+                  if (raw.length > 1) {
+                    const { boxes, nextIndex } = distributeShortAnswer(raw);
+                    onAnswerChange(boxes);
+                    focusBox(nextIndex);
+                    return;
+                  }
+                  const char = raw.slice(-1);
                   if (char && !SHORT_ANSWER_PATTERNS[boxIndex].test(char)) return;
                   const next = Array.isArray(answer)
                     ? [...answer]
                     : ['', '', '', ''];
                   next[boxIndex] = char;
                   onAnswerChange(next);
+                  if (char && boxIndex < 3) focusBox(boxIndex + 1);
+                }}
+                onPaste={(event) => {
+                  const text = event.clipboardData?.getData('text') || '';
+                  if (!text) return;
+                  event.preventDefault();
+                  const { boxes, nextIndex } = distributeShortAnswer(text);
+                  onAnswerChange(boxes);
+                  focusBox(nextIndex);
+                }}
+                onKeyDown={(event) => {
+                  const current = Array.isArray(answer) ? answer[boxIndex] : '';
+                  if (event.key === 'Backspace' && !current && boxIndex > 0) {
+                    event.preventDefault();
+                    const next = Array.isArray(answer)
+                      ? [...answer]
+                      : ['', '', '', ''];
+                    next[boxIndex - 1] = '';
+                    onAnswerChange(next);
+                    focusBox(boxIndex - 1);
+                  } else if (event.key === 'ArrowLeft' && boxIndex > 0) {
+                    event.preventDefault();
+                    focusBox(boxIndex - 1);
+                  } else if (event.key === 'ArrowRight' && boxIndex < 3) {
+                    event.preventDefault();
+                    focusBox(boxIndex + 1);
+                  }
                 }}
                 className="h-14 w-14 rounded-xl border-2 border-slate-300 bg-white text-center text-2xl font-bold text-slate-900 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-100"
               />
@@ -227,10 +271,15 @@ export default function ExamRoomPage() {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
+  const [reloadKey, setReloadKey] = useState(0);
   const [answers, setAnswers] = useState({});
   const [currentIndex, setCurrentIndex] = useState(0);
   const [remainingMs, setRemainingMs] = useState(0);
   const [saveState, setSaveState] = useState('idle');
+  const [saveRetry, setSaveRetry] = useState(0);
+  const [online, setOnline] = useState(() =>
+    typeof navigator === 'undefined' ? true : navigator.onLine
+  );
   const [submitting, setSubmitting] = useState(false);
   const [submitOpen, setSubmitOpen] = useState(false);
   const [actionError, setActionError] = useState('');
@@ -262,6 +311,10 @@ export default function ExamRoomPage() {
   const hasEnteredFullscreenRef = useRef(Boolean(getFullscreenElement()));
   const historyGuardPushedRef = useRef(false);
   const suppressBlurUntilRef = useRef(0);
+  const retryCountRef = useRef(0);
+  const flushRef = useRef(false);
+  const autoSubmitFailedRef = useRef(false);
+  const authFailedRef = useRef(false);
 
   useEffect(() => {
     let active = true;
@@ -273,6 +326,8 @@ export default function ExamRoomPage() {
       };
     }
 
+    setLoading(true);
+    setLoadError('');
     publicExamApi
       .getAttempt(attemptId, token)
       .then(({ data: payload }) => {
@@ -300,8 +355,24 @@ export default function ExamRoomPage() {
               return [[answer.questionId, answer.selectedOption]];
             })
           );
-          answersRef.current = initialAnswers;
-          setAnswers(initialAnswers);
+          const draft = getAttemptDraft(attemptId);
+          const draftFresh =
+            draft &&
+            Number.isFinite(draft.savedAt) &&
+            Date.now() - draft.savedAt < 24 * 60 * 60 * 1000;
+          const mergedAnswers =
+            draftFresh && draft.answers
+              ? { ...initialAnswers, ...draft.answers }
+              : initialAnswers;
+          answersRef.current = mergedAnswers;
+          setAnswers(mergedAnswers);
+          if (JSON.stringify(mergedAnswers) !== JSON.stringify(initialAnswers)) {
+            dirtyRef.current = true;
+            versionRef.current += 1;
+            setSaveState('pending');
+          }
+        } else {
+          removeAttemptDraft(attemptId);
         }
       })
       .catch((error) => {
@@ -314,7 +385,7 @@ export default function ExamRoomPage() {
     return () => {
       active = false;
     };
-  }, [attemptId, token]);
+  }, [attemptId, reloadKey, token]);
 
   const isInProgress = data?.attempt?.status === 'IN_PROGRESS';
   const questions = data?.questions || [];
@@ -454,8 +525,11 @@ export default function ExamRoomPage() {
       inProgressRef.current = false;
       setData(response.data.data);
       dirtyRef.current = false;
+      autoSubmitFailedRef.current = false;
+      removeAttemptDraft(attemptId);
     } catch (error) {
       const message = getErrorMessage(error, 'Không thể nộp bài');
+      autoSubmitFailedRef.current = true;
       setActionError(message);
     } finally {
       submittingRef.current = false;
@@ -464,11 +538,32 @@ export default function ExamRoomPage() {
   }, [attemptId, questions, token]);
 
   useEffect(() => {
+    const handleOnline = () => {
+      setOnline(true);
+      if (dirtyRef.current) setSaveRetry((value) => value + 1);
+      if (autoSubmitFailedRef.current && inProgressRef.current) {
+        submitAnswers();
+      }
+    };
+    const handleOffline = () => setOnline(false);
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, [submitAnswers]);
+
+  useEffect(() => {
     if (!isInProgress || !data?.attempt?.expiresAt) return undefined;
     const tick = () => {
       const expiresAt = new Date(data.attempt.expiresAt).getTime();
       const remaining = Math.max(0, expiresAt - (Date.now() + offsetRef.current));
       setRemainingMs(remaining);
+      if (remaining > 0 && remaining <= 10000 && dirtyRef.current && !flushRef.current) {
+        flushRef.current = true;
+        setSaveRetry((value) => value + 1);
+      }
       if (remaining <= 0 && !autoSubmittedRef.current) {
         autoSubmittedRef.current = true;
         submitAnswers();
@@ -498,8 +593,10 @@ export default function ExamRoomPage() {
           inProgressRef.current = false;
           setData(response.data.data);
           dirtyRef.current = false;
+          removeAttemptDraft(attemptId);
           return;
         }
+        retryCountRef.current = 0;
         if (versionRef.current === version) {
           dirtyRef.current = false;
           setSaveState('saved');
@@ -507,13 +604,22 @@ export default function ExamRoomPage() {
       } catch (error) {
         setSaveState('error');
         if (error.response?.status === 401) {
+          authFailedRef.current = true;
           setActionError('Phiên làm bài đã hết hạn. Vui lòng liên hệ giáo viên.');
         }
       }
-    }, 900);
+    }, 500);
 
     return () => clearTimeout(timer);
-  }, [answers, attemptId, isInProgress, questions, token]);
+  }, [answers, attemptId, isInProgress, questions, saveRetry, token]);
+
+  useEffect(() => {
+    if (!isInProgress || saveState !== 'error' || authFailedRef.current) return undefined;
+    const delay = Math.min(15000, 2000 * 2 ** retryCountRef.current);
+    retryCountRef.current += 1;
+    const timer = setTimeout(() => setSaveRetry((value) => value + 1), delay);
+    return () => clearTimeout(timer);
+  }, [isInProgress, saveState]);
 
   useEffect(() => {
     if (!isInProgress) return undefined;
@@ -530,6 +636,7 @@ export default function ExamRoomPage() {
     answersRef.current = next;
     versionRef.current += 1;
     dirtyRef.current = true;
+    saveAttemptDraft(attemptId, next);
     setSaveState('pending');
     setAnswers(next);
   };
@@ -618,12 +725,23 @@ export default function ExamRoomPage() {
           <AlertTriangle className="mx-auto h-10 w-10 text-amber-500" />
           <h1 className="mt-4 text-xl font-bold text-slate-900">Không thể mở phòng thi</h1>
           <p className="mt-2 text-sm leading-6 text-slate-500">{loadError}</p>
-          <Link
-            to="/"
-            className="mt-5 inline-flex h-10 items-center gap-2 rounded-lg bg-brand-600 px-4 text-sm font-semibold text-white hover:bg-brand-700"
-          >
-            <ArrowLeft className="h-4 w-4" /> Về bảng thi
-          </Link>
+          {!token ? (
+            <p className="mt-2 text-sm leading-6 text-slate-500">
+              Phiên làm bài chỉ tồn tại trong tab đang mở. Hãy nhập lại mã ca thi và mã học
+              sinh để tiếp tục lượt làm dở.
+            </p>
+          ) : null}
+          <div className="mt-5 flex flex-col items-center gap-2">
+            {token ? (
+              <Button onClick={() => setReloadKey((value) => value + 1)}>Thử tải lại</Button>
+            ) : null}
+            <Link
+              to="/"
+              className="inline-flex h-10 items-center gap-2 rounded-lg bg-brand-600 px-4 text-sm font-semibold text-white hover:bg-brand-700"
+            >
+              <ArrowLeft className="h-4 w-4" /> Nhập lại mã ca thi
+            </Link>
+          </div>
         </div>
       </div>
     );
@@ -656,7 +774,7 @@ export default function ExamRoomPage() {
               <p className="mt-2 text-sm text-slate-300">{data.exam?.title}</p>
               {data.attempt?.status === 'AUTO_SUBMITTED' ? (
                 <p className="mt-2 inline-flex rounded-full bg-amber-400/15 px-3 py-1 text-xs font-medium text-amber-200">
-                  Hệ thống tự nộp khi hết thời gian
+                  Hết giờ - hệ thống đã tự chấm điểm bài đã lưu
                 </p>
               ) : null}
             </div>
@@ -724,8 +842,8 @@ export default function ExamRoomPage() {
       : 'chuyển sang tab khác';
 
   return (
-    <div className="min-h-screen bg-slate-100">
-      <header className="sticky top-0 z-30 border-b border-slate-200 bg-white/95 backdrop-blur">
+    <div className="flex h-dvh flex-col overflow-hidden bg-slate-100">
+      <header className="z-30 shrink-0 border-b border-slate-200 bg-white/95 backdrop-blur">
         <div className="mx-auto flex min-h-16 max-w-6xl flex-wrap items-center justify-between gap-3 px-4 py-3 sm:px-6">
           <div className="flex min-w-0 items-center gap-3">
             <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-navy-950 text-white">
@@ -767,12 +885,20 @@ export default function ExamRoomPage() {
       </header>
 
       {!fullscreenSupported ? (
-        <div className="border-b border-amber-200 bg-amber-50 px-4 py-2 text-center text-xs text-amber-800">
+        <div className="shrink-0 border-b border-amber-200 bg-amber-50 px-4 py-2 text-center text-xs text-amber-800">
           Thiết bị không hỗ trợ toàn màn hình. Hệ thống vẫn ghi nhận khi bạn rời tab thi.
         </div>
       ) : null}
 
-      <main className="mx-auto grid max-w-6xl gap-5 px-4 py-5 sm:px-6 lg:grid-cols-[1fr_300px]">
+      {!online ? (
+        <div className="shrink-0 border-b border-rose-200 bg-rose-50 px-4 py-2 text-center text-xs font-medium text-rose-700">
+          Mất kết nối mạng. Bài làm vẫn được giữ trên thiết bị và tự lưu lại khi có mạng;
+          thời gian làm bài vẫn tiếp tục.
+        </div>
+      ) : null}
+
+      <div className="min-h-0 flex-1 overflow-y-auto">
+        <main className="mx-auto grid max-w-6xl gap-5 px-4 py-5 sm:px-6 lg:grid-cols-[1fr_300px]">
         <div className="min-w-0">
           <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
             <div
@@ -865,7 +991,7 @@ export default function ExamRoomPage() {
                 <section
                   key={question.id}
                   id={`exam-question-${question.id}`}
-                  className="surface scroll-mt-24 p-5 sm:p-7"
+                  className="surface scroll-mt-5 p-5 sm:p-7"
                 >
                   <QuestionPrompt
                     question={question}
@@ -889,7 +1015,7 @@ export default function ExamRoomPage() {
           )}
         </div>
 
-        <aside className="space-y-4 lg:sticky lg:top-20 lg:self-start">
+        <aside className="space-y-4 lg:sticky lg:top-5 lg:self-start">
           <div className="surface p-5">
             <h2 className="text-sm font-semibold text-slate-900">Danh sách câu hỏi</h2>
             <p className="mt-1 text-xs text-slate-500">
@@ -945,7 +1071,8 @@ export default function ExamRoomPage() {
             </p>
           </div>
         </aside>
-      </main>
+        </main>
+      </div>
 
       <ConfirmDialog
         open={submitOpen}

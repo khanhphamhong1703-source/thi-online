@@ -1,12 +1,13 @@
 const prisma = require('../../config/prisma');
+const crypto = require('node:crypto');
 const ApiError = require('../../utils/ApiError');
 const { getPagination, paginationMeta } = require('../../utils/pagination');
 const { parseDateInput } = require('../../utils/date');
 const { normalizeSearchText } = require('../../utils/search');
 const { assertClassOwner } = require('../classes/class.service');
 
-const STUDENT_CODE_PREFIX = 'HS';
-const STUDENT_CODE_MAX = 9999;
+const STUDENT_CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+const STUDENT_CODE_LENGTH = 6;
 
 function buildSearchText(code, fullName, phone, email) {
   return normalizeSearchText([code, fullName, phone || '', email || ''].join(' '));
@@ -18,38 +19,25 @@ function normalizeOptional(value) {
   return trimmed || null;
 }
 
+function randomStudentCode() {
+  let code = '';
+  for (let index = 0; index < STUDENT_CODE_LENGTH; index += 1) {
+    code += STUDENT_CODE_ALPHABET[crypto.randomInt(STUDENT_CODE_ALPHABET.length)];
+  }
+  return code;
+}
+
 async function generateStudentCode(database = prisma) {
-  let skip = 0;
-  let maxNumber = 0;
-  let students;
-
-  do {
-    students = await database.student.findMany({
-      where: { studentCode: { startsWith: STUDENT_CODE_PREFIX } },
-      select: { studentCode: true },
-      orderBy: { studentCode: 'desc' },
-      skip,
-      take: 100,
+  for (let attempt = 0; attempt < 20; attempt += 1) {
+    const code = randomStudentCode();
+    const existing = await database.student.findUnique({
+      where: { studentCode: code },
+      select: { id: true },
     });
-
-    for (const { studentCode } of students) {
-      const match = new RegExp(`^${STUDENT_CODE_PREFIX}(\\d{4})$`).exec(studentCode);
-      if (match) {
-        maxNumber = Number(match[1]);
-        break;
-      }
-    }
-
-    if (maxNumber || students.length < 100) break;
-    skip += students.length;
-  } while (students.length);
-
-  const nextNumber = maxNumber + 1;
-  if (nextNumber > STUDENT_CODE_MAX) {
-    throw new ApiError(409, 'Đã sử dụng hết dải mã học sinh HS0001–HS9999');
+    if (!existing) return code;
   }
 
-  return `${STUDENT_CODE_PREFIX}${String(nextNumber).padStart(4, '0')}`;
+  throw new ApiError(503, 'Không thể cấp mã học sinh mới. Vui lòng thử lại.');
 }
 
 async function createStudentWithGeneratedCode(classId, payload, dateOfBirth) {
@@ -137,7 +125,7 @@ async function listStudentsInClass(classId, teacherId, { page, limit, search }) 
 }
 
 async function addStudentToClass(classId, teacherId, payload) {
-  await assertClassOwner(classId, teacherId);
+  const classroom = await assertClassOwner(classId, teacherId);
   const date = parseDateInput(payload.dateOfBirth);
   if (!date) {
     throw new ApiError(422, 'Ngày sinh không hợp lệ');
@@ -145,7 +133,7 @@ async function addStudentToClass(classId, teacherId, payload) {
 
   const student = await createStudentWithGeneratedCode(classId, payload, date);
 
-  return { student };
+  return { student, classroom };
 }
 
 async function getStudent(studentId, teacherId) {
@@ -177,19 +165,26 @@ async function updateStudent(studentId, teacherId, payload) {
   data.searchText = buildSearchText(studentCode, fullName, phone, email);
 
   const student = await prisma.student.update({ where: { id: studentId }, data });
-  return { student };
+  return { student, classrooms: existing.enrollments.map((enrollment) => enrollment.class) };
 }
 
 async function removeStudentFromClass(classId, studentId, teacherId) {
-  await assertClassOwner(classId, teacherId);
+  const classroom = await assertClassOwner(classId, teacherId);
+  const student = await prisma.student.findFirst({
+    where: { id: studentId, enrollments: { some: { classId } } },
+    select: { id: true, fullName: true, studentCode: true },
+  });
 
   const result = await prisma.enrollment.deleteMany({ where: { classId, studentId } });
   if (result.count === 0) {
     throw new ApiError(404, 'Học sinh không thuộc lớp học này');
   }
+
+  return { student, classroom };
 }
 
 module.exports = {
+  generateStudentCode,
   listStudentsInClass,
   addStudentToClass,
   getStudent,

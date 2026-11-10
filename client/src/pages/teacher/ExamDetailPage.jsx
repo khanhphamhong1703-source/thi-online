@@ -11,6 +11,7 @@ import {
   Eye,
   FileText,
   LockKeyhole,
+  Presentation,
   Send,
   Shuffle,
   Trash2,
@@ -144,6 +145,13 @@ export default function ExamDetailPage() {
         description={`${exam.subject} · ${examClassLabel}`}
         actions={
           <>
+            <Button
+              variant="secondary"
+              icon={Presentation}
+              onClick={() => navigate(`/teacher/present/${id}`)}
+            >
+              Chiếu mã
+            </Button>
             <Button variant="secondary" icon={BarChart3} onClick={() => navigate(`/teacher/exams/${id}/results`)}>
               Kết quả
             </Button>

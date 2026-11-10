@@ -2,7 +2,7 @@ const ExcelJS = require('exceljs');
 const prisma = require('../../config/prisma');
 const ApiError = require('../../utils/ApiError');
 const { parseDateInput, formatDateVN } = require('../../utils/date');
-const { buildSearchText, normalizeOptional } = require('./student.service');
+const { buildSearchText, generateStudentCode, normalizeOptional } = require('./student.service');
 const { assertClassOwner } = require('../classes/class.service');
 
 const MAX_IMPORT_ROWS = 2000;
@@ -84,7 +84,6 @@ async function readWorkbookRows(buffer) {
 
   const indexes = findHeaderIndex(sheet.getRow(1));
   const missing = [];
-  if (!indexes.studentCode) missing.push('Mã học sinh');
   if (!indexes.fullName) missing.push('Họ và tên');
   if (!indexes.dateOfBirth) missing.push('Ngày sinh');
   if (missing.length) {
@@ -96,7 +95,7 @@ async function readWorkbookRows(buffer) {
     const row = sheet.getRow(rowNumber);
     const raw = {
       rowNumber,
-      studentCode: textValue(row.getCell(indexes.studentCode)),
+      studentCode: indexes.studentCode ? textValue(row.getCell(indexes.studentCode)) : '',
       fullName: textValue(row.getCell(indexes.fullName)),
       dateOfBirth:
         indexes.dateOfBirth !== undefined ? cellToText(row.getCell(indexes.dateOfBirth)) : '',
@@ -104,9 +103,11 @@ async function readWorkbookRows(buffer) {
       email: indexes.email ? textValue(row.getCell(indexes.email)) : '',
     };
 
-    const isEmpty = ['studentCode', 'fullName', 'dateOfBirth', 'phone', 'email'].every(
-      (field) => !String(raw[field] ?? '').trim()
-    );
+    const isEmpty = !String(raw.studentCode ?? '').trim() &&
+      !String(raw.fullName ?? '').trim() &&
+      !String(raw.dateOfBirth ?? '').trim() &&
+      !String(raw.phone ?? '').trim() &&
+      !String(raw.email ?? '').trim();
     if (isEmpty) continue;
 
     rows.push(raw);
@@ -137,11 +138,9 @@ function validateRawRows(rows) {
     const email = String(row.email || '').trim();
     const dateOfBirth = parseDateInput(row.dateOfBirth);
 
-    if (!studentCode) {
-      errors.push('Thiếu mã học sinh');
-    } else if (!/^[A-Za-z0-9._-]{1,30}$/.test(studentCode)) {
+    if (studentCode && !/^[A-Za-z0-9._-]{1,30}$/.test(studentCode)) {
       errors.push('Mã học sinh chỉ gồm chữ, số, dấu chấm, gạch dưới, gạch ngang (tối đa 30 ký tự)');
-    } else if (codeCounts.get(studentCode) > 1) {
+    } else if (studentCode && codeCounts.get(studentCode) > 1) {
       errors.push(`Mã học sinh bị trùng ${codeCounts.get(studentCode)} lần trong file`);
     }
 
@@ -222,7 +221,7 @@ async function validateImportRows(rows, classId) {
       ...row,
       status: 'new',
       existingStudent: null,
-      message: 'Học sinh mới, sẽ được tạo và thêm vào lớp',
+      message: 'Học sinh mới, hệ thống sẽ cấp mã khi nhập',
     };
   });
 }
@@ -241,7 +240,7 @@ function summarizeRows(rows) {
 function serializePreviewRows(rows) {
   return rows.map((row) => ({
     rowNumber: row.rowNumber,
-    studentCode: row.studentCode,
+    studentCode: row.status === 'new' ? '' : row.studentCode,
     fullName: row.fullName,
     dateOfBirth: row.dateOfBirth,
     phone: row.phone,
@@ -263,44 +262,61 @@ async function previewImport(classId, teacherId, buffer) {
   };
 }
 
+async function createStudentWithRandomCode(row, date) {
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    const studentCode = await generateStudentCode();
+    try {
+      return await prisma.student.create({
+        data: {
+          studentCode,
+          fullName: row.fullName,
+          dateOfBirth: date,
+          phone: normalizeOptional(row.phone),
+          email: normalizeOptional(row.email),
+          searchText: buildSearchText(
+            studentCode,
+            row.fullName,
+            normalizeOptional(row.phone),
+            normalizeOptional(row.email)
+          ),
+        },
+      });
+    } catch (error) {
+      if (error.code !== 'P2002') throw error;
+    }
+  }
+
+  throw new ApiError(503, 'Không thể cấp mã học sinh mới. Vui lòng thử lại.');
+}
+
 async function commitImport(classId, teacherId, buffer) {
-  await assertClassOwner(classId, teacherId);
+  const classroom = await assertClassOwner(classId, teacherId);
   const rawRows = await readWorkbookRows(buffer);
   const rows = await validateImportRows(rawRows, classId);
 
   let created = 0;
   let reused = 0;
   let skipped = summarizeRows(rows).skipped;
+  const assigned = [];
 
   for (const row of rows) {
     if (!['new', 'existing'].includes(row.status)) continue;
 
     const date = parseDateInput(row.dateOfBirth);
-    const existingStudent = await prisma.student.findUnique({
-      where: { studentCode: row.studentCode },
-    });
-    const student =
-      existingStudent ||
-      (await prisma.student.create({
-        data: {
-          studentCode: row.studentCode,
-          fullName: row.fullName,
-          dateOfBirth: date,
-          phone: normalizeOptional(row.phone),
-          email: normalizeOptional(row.email),
-          searchText: buildSearchText(
-            row.studentCode,
-            row.fullName,
-            normalizeOptional(row.phone),
-            normalizeOptional(row.email)
-          ),
-        },
-      }));
+    const existingStudent = row.studentCode
+      ? await prisma.student.findUnique({ where: { studentCode: row.studentCode } })
+      : null;
+    const student = existingStudent || (await createStudentWithRandomCode(row, date));
 
     try {
       await prisma.enrollment.create({ data: { classId, studentId: student.id } });
       if (row.status === 'new') created += 1;
       else reused += 1;
+      assigned.push({
+        rowNumber: row.rowNumber,
+        fullName: student.fullName,
+        studentCode: student.studentCode,
+      });
     } catch (error) {
       if (error.code === 'P2002') {
         skipped += 1;
@@ -313,6 +329,7 @@ async function commitImport(classId, teacherId, buffer) {
   const invalidRows = rows.filter((row) => row.status === 'invalid');
 
   return {
+    classroom: { id: classroom.id, name: classroom.name, classCode: classroom.classCode },
     summary: {
       total: rows.length,
       imported: created + reused,
@@ -327,6 +344,7 @@ async function commitImport(classId, teacherId, buffer) {
       fullName: row.fullName,
       errors: row.errors,
     })),
+    students: assigned,
   };
 }
 

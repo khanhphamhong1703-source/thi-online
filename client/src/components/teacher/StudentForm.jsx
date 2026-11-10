@@ -185,7 +185,7 @@ export default function StudentForm({ mode, classId, studentId }) {
         description={
           isEdit
             ? 'Thông tin học sinh được đồng bộ trên toàn hệ thống. Mã học sinh được giữ cố định.'
-            : 'Mã học sinh được hệ thống tự động sinh theo dạng HSxxxx, giáo viên không cần nhập.'
+            : 'Mã học sinh do hệ thống cấp ngẫu nhiên khi lưu, giáo viên không cần nhập.'
         }
       />
 
@@ -233,14 +233,14 @@ export default function StudentForm({ mode, classId, studentId }) {
                 hint={
                   isEdit
                     ? 'Mã học sinh không thể thay đổi sau khi tạo.'
-                    : 'Mã được tạo tự động khi lưu, ví dụ HS0001.'
+                    : 'Mã được cấp ngẫu nhiên khi lưu, ví dụ 7K2M9Q.'
                 }
               >
                 <div className="relative">
                   <Hash className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
                   <Input
                     id="studentCode"
-                    value={isEdit ? student?.studentCode || '' : 'Tự động sinh (HSxxxx)'}
+                    value={isEdit ? student?.studentCode || '' : 'Tự động cấp khi lưu'}
                     readOnly
                     disabled
                     className="pl-9 font-semibold"
@@ -325,10 +325,10 @@ export default function StudentForm({ mode, classId, studentId }) {
               <div className="surface p-5">
                 <h3 className="text-sm font-semibold text-slate-900">Mã học sinh tự động</h3>
                 <ul className="mt-3 space-y-2.5 text-sm leading-6 text-slate-500">
-                  <li>Mã được sinh theo thứ tự dạng HS0001, HS0002...</li>
+                  <li>Mã được cấp ngẫu nhiên, mỗi học sinh một mã riêng.</li>
                   <li>Mã là duy nhất trên toàn hệ thống và không thể chỉnh sửa.</li>
                   <li>Học sinh có thể thuộc nhiều lớp cùng lúc.</li>
-                  <li>Import Excel vẫn sử dụng mã học sinh có sẵn trong file.</li>
+                  <li>Import Excel: hệ thống tự cấp mã cho học sinh mới.</li>
                 </ul>
               </div>
             )}

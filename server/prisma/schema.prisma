@@ -156,3 +156,30 @@ model ExamAttempt {
   @@index([studentId])
   @@map("exam_attempts")
 }
+
+model ActivityLog {
+  id            String   @id @default(auto()) @map("_id") @db.ObjectId
+  category      String
+  action        String
+  status        String   @default("SUCCESS")
+  reason        String?
+  actorId       String?  @db.ObjectId
+  actorUsername String
+  actorFullName String
+  actorRole     String
+  targetType    String?
+  targetId      String?  @db.ObjectId
+  targetLabel   String?
+  data          Json?
+  device        String?
+  browser       String?
+  ip            String?
+  searchText    String   @default("")
+  createdAt     DateTime @default(now())
+
+  @@index([actorId, createdAt])
+  @@index([createdAt])
+  @@index([category, createdAt])
+  @@index([status, createdAt])
+  @@map("activity_logs")
+}

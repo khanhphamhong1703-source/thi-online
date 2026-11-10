@@ -19,6 +19,7 @@ const classStudentRoutes = require('./modules/students/class-student.routes');
 const studentRoutes = require('./modules/students/student.routes');
 const examRoutes = require('./modules/exams/exam.routes');
 const publicExamRoutes = require('./modules/exams/public-exam.routes');
+const activityRoutes = require('./modules/activity/activity.routes');
 
 const app = express();
 
@@ -55,6 +56,7 @@ app.get('/api/health', (_req, res) => {
 app.use('/api/auth', authRoutes);
 app.use('/api/admin/data', authenticate, requireRole('ADMIN'), adminDataRoutes);
 app.use('/api/admin', authenticate, requireRole('ADMIN'), userRoutes);
+app.use('/api/teacher/activity', authenticate, requireRole('TEACHER'), activityRoutes);
 app.use('/api/teacher', authenticate, requireRole('TEACHER'), teacherRoutes);
 app.use('/api/classes', authenticate, requireRole('TEACHER'), classStudentRoutes);
 app.use('/api/classes', authenticate, requireRole('TEACHER'), classRoutes);

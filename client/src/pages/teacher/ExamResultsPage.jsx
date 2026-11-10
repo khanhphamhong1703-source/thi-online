@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
-import { BarChart3, Download, Eye, RefreshCcw, Users } from 'lucide-react';
+import { BarChart3, Download, Eye, RefreshCcw, RotateCcw, Users } from 'lucide-react';
 import { examApi } from '../../api/exams';
 import { downloadBlob, getErrorMessage } from '../../api/client';
 import { useToast } from '../../contexts/ToastContext';
@@ -28,6 +28,7 @@ export default function ExamResultsPage() {
   const [data, setData] = useState({ items: [], pagination: null, exam: null, stats: null });
   const [loading, setLoading] = useState(true);
   const [exporting, setExporting] = useState(false);
+  const [regrading, setRegrading] = useState(false);
   const [detailAttemptId, setDetailAttemptId] = useState(null);
   const [detailData, setDetailData] = useState(null);
   const [detailLoading, setDetailLoading] = useState(false);
@@ -127,6 +128,24 @@ export default function ExamResultsPage() {
     }
   };
 
+  const handleRegrade = async () => {
+    setRegrading(true);
+    try {
+      const response = await examApi.regrade(id);
+      const regraded = response.data?.data?.regraded ?? 0;
+      if (regraded > 0) {
+        toast.success(`Đã chấm lại ${regraded} bài làm theo đáp án hiện tại`);
+      } else {
+        toast.info('Chưa có bài nào để chấm lại');
+      }
+      setReloadKey((value) => value + 1);
+    } catch (apiError) {
+      toast.error(getErrorMessage(apiError, 'Không thể chấm lại bài làm'));
+    } finally {
+      setRegrading(false);
+    }
+  };
+
   const openAttemptDetail = async (attemptId) => {
     setDetailAttemptId(attemptId);
     setDetailData(null);
@@ -164,6 +183,15 @@ export default function ExamResultsPage() {
           data.exam ? (
             <div className="flex flex-wrap items-center gap-2">
               <Badge variant="info">Mã ca thi: {data.exam.accessCode}</Badge>
+              <Button
+                variant="secondary"
+                icon={RotateCcw}
+                loading={regrading}
+                onClick={handleRegrade}
+                title="Chấm lại toàn bộ bài đã nộp theo đáp án hiện tại"
+              >
+                Chấm lại
+              </Button>
               <Button
                 variant="secondary"
                 icon={Download}

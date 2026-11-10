@@ -219,7 +219,7 @@ export default function ExamIntroPage() {
           </div>
         </section>
 
-        <aside className="h-fit space-y-5 lg:sticky lg:top-24">
+        <aside className="h-fit space-y-5 lg:sticky lg:top-6">
           <section className="surface p-5 sm:p-6">
             <div className="flex items-center gap-2 text-sm font-semibold text-slate-900">
               <UserRound className="h-4 w-4 text-brand-600" />

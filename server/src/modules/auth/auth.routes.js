@@ -9,7 +9,12 @@ const router = express.Router();
 
 const loginLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  limit: 20,
+  limit: 10,
+  skipSuccessfulRequests: true,
+  keyGenerator(req) {
+    const username = String(req.body?.username || '').trim().toLowerCase();
+    return `${req.ip}:${username}`;
+  },
   standardHeaders: true,
   legacyHeaders: false,
   message: {

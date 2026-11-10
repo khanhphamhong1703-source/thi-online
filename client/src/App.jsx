@@ -1,5 +1,5 @@
 import { lazy, Suspense } from 'react';
-import { Route, Routes } from 'react-router-dom';
+import { Navigate, Route, Routes } from 'react-router-dom';
 import ProtectedRoute from './components/ProtectedRoute';
 import LoadingState from './components/LoadingState';
 import AppLayout from './layouts/AppLayout';
@@ -8,6 +8,8 @@ import PublicLayout from './layouts/PublicLayout';
 const LoginPage = lazy(() => import('./pages/auth/LoginPage'));
 const AdminDashboardPage = lazy(() => import('./pages/admin/AdminDashboardPage'));
 const AdminDataPage = lazy(() => import('./pages/admin/AdminDataPage'));
+const AdminActivityPage = lazy(() => import('./pages/admin/AdminActivityPage'));
+const AdminSettingsPage = lazy(() => import('./pages/admin/AdminSettingsPage'));
 const TeacherListPage = lazy(() => import('./pages/admin/TeacherListPage'));
 const TeacherCreatePage = lazy(() => import('./pages/admin/TeacherCreatePage'));
 const TeacherEditPage = lazy(() => import('./pages/admin/TeacherEditPage'));
@@ -28,6 +30,8 @@ const ExamListPage = lazy(() => import('./pages/teacher/ExamListPage'));
 const ExamFormPage = lazy(() => import('./pages/teacher/ExamFormPage'));
 const ExamDetailPage = lazy(() => import('./pages/teacher/ExamDetailPage'));
 const ExamResultsPage = lazy(() => import('./pages/teacher/ExamResultsPage'));
+const ExamPresentPage = lazy(() => import('./pages/teacher/ExamPresentPage'));
+const ActivityPage = lazy(() => import('./pages/teacher/ActivityPage'));
 const ExamBoardPage = lazy(() => import('./pages/public/ExamBoardPage'));
 const ExamIntroPage = lazy(() => import('./pages/public/ExamIntroPage'));
 const ExamRoomPage = lazy(() => import('./pages/public/ExamRoomPage'));
@@ -55,7 +59,12 @@ export default function App() {
         }
       >
         <Route index element={<AdminDashboardPage />} />
-        <Route path="data" element={<AdminDataPage />} />
+        <Route path="data" element={<Navigate to="/admin/data/classes" replace />} />
+        <Route path="data/teachers" element={<Navigate to="/admin/teachers" replace />} />
+        <Route path="data/activity" element={<Navigate to="/admin/activity" replace />} />
+        <Route path="data/:section" element={<AdminDataPage />} />
+        <Route path="activity" element={<AdminActivityPage />} />
+        <Route path="settings" element={<AdminSettingsPage />} />
         <Route path="teachers" element={<TeacherListPage />} />
         <Route path="teachers/new" element={<TeacherCreatePage />} />
         <Route path="teachers/:id" element={<TeacherDetailPage />} />
@@ -85,9 +94,19 @@ export default function App() {
         <Route path="exams/:id" element={<ExamDetailPage />} />
         <Route path="exams/:id/edit" element={<ExamFormPage mode="edit" />} />
         <Route path="exams/:id/results" element={<ExamResultsPage />} />
+        <Route path="activity" element={<ActivityPage />} />
         <Route path="profile" element={<ProfilePage />} />
         <Route path="change-password" element={<ChangePasswordPage />} />
         </Route>
+
+        <Route
+          path="/teacher/present/:id"
+          element={
+            <ProtectedRoute role="TEACHER">
+              <ExamPresentPage />
+            </ProtectedRoute>
+          }
+        />
 
         <Route path="*" element={<NotFoundPage />} />
       </Routes>

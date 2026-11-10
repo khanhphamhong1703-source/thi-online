@@ -12,6 +12,7 @@ export const examApi = {
   },
   publish: (id) => api.post(`/exams/${id}/publish`),
   close: (id) => api.post(`/exams/${id}/close`),
+  regrade: (id) => api.post(`/exams/${id}/regrade`),
   remove: (id) => api.delete(`/exams/${id}`),
   results: (id, params) => api.get(`/exams/${id}/attempts`, { params }),
   attemptDetail: (examId, attemptId) =>

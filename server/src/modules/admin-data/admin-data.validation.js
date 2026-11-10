@@ -16,6 +16,7 @@ const teacherQuerySchema = z.object({
 const classQuerySchema = z.object({
   ...paginationQuery,
   status: z.enum(['all', 'active', 'archived']).optional().default('all'),
+  teacherId: objectId.optional(),
 });
 
 const studentQuerySchema = z.object({

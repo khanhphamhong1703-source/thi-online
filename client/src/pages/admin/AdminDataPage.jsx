@@ -1,56 +1,23 @@
-import { useEffect, useRef, useState } from 'react';
-import {
-  AlertTriangle,
-  Archive,
-  ArchiveRestore,
-  BookOpen,
-  ClipboardList,
-  Database,
-  Download,
-  FileText,
-  HardDrive,
-  Lock,
-  RefreshCcw,
-  Trash2,
-  Upload,
-  Unlock,
-  Users,
-  UserRound,
-} from 'lucide-react';
-import { adminApi } from '../../api/admin';
+import { useEffect, useState } from 'react';
+import { Link, Navigate, useParams, useSearchParams } from 'react-router-dom';
+import { Archive, ArchiveRestore, Database, RefreshCcw, Trash2 } from 'lucide-react';
 import { adminDataApi } from '../../api/adminData';
-import {
-  downloadBlob,
-  getErrorMessage,
-  getFilenameFromDisposition,
-} from '../../api/client';
+import { getErrorMessage } from '../../api/client';
 import { useToast } from '../../contexts/ToastContext';
 import { formatDate } from '../../utils/format';
 import Button from '../../components/Button';
 import Badge from '../../components/Badge';
-import ConfirmDialog from '../../components/ConfirmDialog';
 import EmptyState from '../../components/EmptyState';
 import LoadingState from '../../components/LoadingState';
-import Modal from '../../components/Modal';
 import PageHeader from '../../components/PageHeader';
 import Pagination from '../../components/Pagination';
 import SearchInput from '../../components/SearchInput';
 import Select from '../../components/Select';
 import { useDebounce } from '../../hooks/useDebounce';
-
-const TABS = [
-  { key: 'teachers', label: 'Giáo viên', icon: Users },
-  { key: 'classes', label: 'Lớp học', icon: BookOpen },
-  { key: 'students', label: 'Học sinh', icon: UserRound },
-  { key: 'exams', label: 'Đề thi', icon: ClipboardList },
-];
+import DataNav from './DataNav';
+import DeleteEntityDialog from '../../components/admin/DeleteEntityDialog';
 
 const STATUS_OPTIONS = {
-  teachers: [
-    { value: 'all', label: 'Tất cả trạng thái' },
-    { value: 'active', label: 'Đang hoạt động' },
-    { value: 'locked', label: 'Đã khóa' },
-  ],
   classes: [
     { value: 'all', label: 'Tất cả trạng thái' },
     { value: 'active', label: 'Đang hoạt động' },
@@ -71,52 +38,84 @@ const EXAM_STATUS = {
   CLOSED: { label: 'Đã đóng', variant: 'locked' },
 };
 
-function SummaryCard({ icon: Icon, label, value, hint, tone }) {
+const COLUMN_HINTS = {
+  'Học sinh': 'Số học sinh đang theo học',
+  'Lượt thi': 'Tổng số lượt làm bài',
+  'Lớp': 'Lớp chính được giao đề',
+};
+
+const SECTIONS = {
+  classes: {
+    title: 'Lớp học',
+    description: 'Toàn bộ lớp học, kể cả lớp đã lưu trữ; có thể khôi phục hoặc xoá vĩnh viễn.',
+    emptyTitle: 'Chưa có lớp học nào',
+    emptyDescription: 'Lớp học do giáo viên tạo sẽ xuất hiện ở đây.',
+    placeholder: 'Tìm theo tên lớp, mã lớp...',
+    fetcher: adminDataApi.listClasses,
+    supportsTeacherFilter: true,
+    statusOptions: STATUS_OPTIONS.classes,
+    columns: ['Lớp học', 'Giáo viên', 'Học sinh', 'Trạng thái', 'Ngày tạo', ''],
+  },
+  students: {
+    title: 'Học sinh',
+    description: 'Hồ sơ học sinh, lớp đang theo học và số lượt thi.',
+    emptyTitle: 'Chưa có học sinh nào',
+    emptyDescription: 'Học sinh được thêm vào lớp sẽ xuất hiện ở đây.',
+    placeholder: 'Tìm theo tên, mã học sinh...',
+    fetcher: adminDataApi.listStudents,
+    statusOptions: STATUS_OPTIONS.students,
+    columns: ['Học sinh', 'Lớp', 'Lượt thi', 'Ngày tạo', ''],
+  },
+  exams: {
+    title: 'Đề thi',
+    description: 'Đề nháp, đã công bố, đã đóng và số lượt làm bài.',
+    emptyTitle: 'Chưa có đề thi nào',
+    emptyDescription: 'Đề do giáo viên tạo sẽ xuất hiện ở đây.',
+    placeholder: 'Tìm theo tên đề, môn học...',
+    fetcher: adminDataApi.listExams,
+    statusOptions: STATUS_OPTIONS.exams,
+    columns: ['Đề thi', 'Giáo viên', 'Lớp', 'Trạng thái', 'Lượt thi', ''],
+  },
+};
+
+function IconAction({ label, icon: Icon, onClick, disabled, tone = 'default' }) {
   const tones = {
-    blue: 'bg-blue-50 text-blue-600',
-    amber: 'bg-amber-50 text-amber-600',
-    emerald: 'bg-emerald-50 text-emerald-600',
-    violet: 'bg-violet-50 text-violet-600',
+    default: 'text-slate-500 hover:bg-slate-100 hover:text-slate-800',
+    danger: 'text-rose-500 hover:bg-rose-50 hover:text-rose-700',
   };
   return (
-    <div className="surface flex items-center gap-3 p-3.5">
-      <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${tones[tone]}`}>
-        <Icon className="h-5 w-5" />
-      </div>
-      <div className="min-w-0">
-        <p className="text-[11px] font-medium text-slate-500">{label}</p>
-        <p className="text-xl font-bold leading-tight text-slate-900">{value ?? '—'}</p>
-        {hint ? <p className="truncate text-[11px] text-slate-500">{hint}</p> : null}
-      </div>
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      title={label}
+      aria-label={label}
+      className={`focus-ring rounded-lg p-2 transition disabled:cursor-not-allowed disabled:opacity-50 ${tones[tone]}`}
+    >
+      <Icon className="h-4 w-4" />
+    </button>
+  );
+}
+
+function DetailStat({ label, value }) {
+  return (
+    <div>
+      <dt className="text-[11px] font-medium text-slate-500">{label}</dt>
+      <dd className="mt-0.5 text-sm font-medium text-slate-800">{value}</dd>
     </div>
   );
 }
 
-function DeleteButton({ onClick, loading }) {
-  return (
-    <Button
-      variant="ghost-danger"
-      size="sm"
-      icon={Trash2}
-      loading={loading}
-      onClick={onClick}
-      title="Xoá vĩnh viễn"
-    >
-      Xoá
-    </Button>
-  );
-}
-
-function formatFileSize(bytes) {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-}
-
 export default function AdminDataPage() {
   const toast = useToast();
-  const [summary, setSummary] = useState(null);
-  const [tab, setTab] = useState('teachers');
+  const { section } = useParams();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const activeSection = SECTIONS[section] ? section : 'classes';
+  const config = SECTIONS[activeSection];
+  const teacherFilterId =
+    config.supportsTeacherFilter ? searchParams.get('teacherId') || '' : '';
+  const teacherFilterName = teacherFilterId ? searchParams.get('teacherName') || '' : '';
+
   const [page, setPage] = useState(1);
   const [status, setStatus] = useState('all');
   const [searchTerm, setSearchTerm] = useState('');
@@ -126,46 +125,32 @@ export default function AdminDataPage() {
   const [error, setError] = useState('');
   const [reloadKey, setReloadKey] = useState(0);
   const [actionKey, setActionKey] = useState('');
-  const [confirm, setConfirm] = useState(null);
-  const [deleting, setDeleting] = useState(false);
-  const [exporting, setExporting] = useState(false);
-  const [importFile, setImportFile] = useState(null);
-  const [importMode, setImportMode] = useState('merge');
-  const [replaceConfirmed, setReplaceConfirmed] = useState(false);
-  const [importing, setImporting] = useState(false);
-  const importInputRef = useRef(null);
+  const [deleteTarget, setDeleteTarget] = useState(null);
+
+  const statusValue = config.statusOptions.some((option) => option.value === status)
+    ? status
+    : 'all';
 
   useEffect(() => {
-    let active = true;
-    adminDataApi
-      .summary()
-      .then(({ data: payload }) => {
-        if (active) setSummary(payload.data);
-      })
-      .catch(() => {
-        if (active) toast.error('Không tải được thống kê dữ liệu');
-      });
-    return () => {
-      active = false;
-    };
-  }, [reloadKey, toast]);
+    setPage(1);
+    setStatus('all');
+    setSearchTerm('');
+    setData({ items: [], pagination: null });
+  }, [activeSection]);
 
   useEffect(() => {
     let active = true;
     setLoading(true);
     setError('');
-    const fetcher = {
-      teachers: adminDataApi.listTeachers,
-      classes: adminDataApi.listClasses,
-      students: adminDataApi.listStudents,
-      exams: adminDataApi.listExams,
-    }[tab];
-    fetcher({
-      page,
-      limit: 10,
-      search: debouncedSearch || undefined,
-      status: tab === 'students' || status === 'all' ? undefined : status,
-    })
+
+    config
+      .fetcher({
+        page,
+        limit: 10,
+        search: debouncedSearch || undefined,
+        status: statusValue === 'all' ? undefined : statusValue,
+        teacherId: teacherFilterId || undefined,
+      })
       .then(({ data: payload }) => {
         if (!active) return;
         setData({ items: payload.data, pagination: payload.pagination });
@@ -180,82 +165,9 @@ export default function AdminDataPage() {
     return () => {
       active = false;
     };
-  }, [tab, page, status, debouncedSearch, reloadKey]);
-
-  const changeTab = (nextTab) => {
-    setTab(nextTab);
-    setStatus('all');
-    setPage(1);
-    setData({ items: [], pagination: null });
-  };
+  }, [activeSection, config, page, statusValue, debouncedSearch, teacherFilterId, reloadKey]);
 
   const refresh = () => setReloadKey((value) => value + 1);
-
-  const handleExport = async () => {
-    setExporting(true);
-    try {
-      const response = await adminDataApi.exportBackup();
-      const filename = getFilenameFromDisposition(
-        response.headers['content-disposition'],
-        `vieexam-backup-${new Date().toISOString().slice(0, 10)}.json`
-      );
-      downloadBlob(response.data, filename);
-      toast.success('Đã xuất bản sao lưu dữ liệu');
-    } catch (apiError) {
-      toast.error(getErrorMessage(apiError, 'Không thể xuất bản sao lưu'));
-    } finally {
-      setExporting(false);
-    }
-  };
-
-  const handleChooseBackup = (event) => {
-    const file = event.target.files?.[0];
-    event.target.value = '';
-    if (!file) return;
-    if (!/\.json$/i.test(file.name)) {
-      toast.error('Chỉ chấp nhận file sao lưu JSON');
-      return;
-    }
-    if (file.size > 50 * 1024 * 1024) {
-      toast.error('File sao lưu vượt quá dung lượng tối đa 50MB');
-      return;
-    }
-    setImportFile(file);
-    setImportMode('merge');
-    setReplaceConfirmed(false);
-  };
-
-  const closeImport = () => {
-    if (importing) return;
-    setImportFile(null);
-    setReplaceConfirmed(false);
-  };
-
-  const handleImport = async () => {
-    if (!importFile) return;
-    if (importMode === 'replace' && !replaceConfirmed) {
-      toast.error('Vui lòng xác nhận thay thế toàn bộ dữ liệu');
-      return;
-    }
-
-    setImporting(true);
-    try {
-      const { data: payload } = await adminDataApi.importBackup(importFile, importMode);
-      const total = payload.data?.total ?? 0;
-      toast.success(`${payload.message}: ${total} bản ghi`);
-      setImportFile(null);
-      setReplaceConfirmed(false);
-      if (payload.data?.requiresLogin) {
-        window.location.assign('/admin/login');
-        return;
-      }
-      refresh();
-    } catch (apiError) {
-      toast.error(getErrorMessage(apiError, 'Không thể nhập bản sao lưu'));
-    } finally {
-      setImporting(false);
-    }
-  };
 
   const runAction = async (key, action, successMessage) => {
     setActionKey(key);
@@ -270,13 +182,6 @@ export default function AdminDataPage() {
     }
   };
 
-  const toggleTeacher = (teacher) =>
-    runAction(
-      `teacher-status-${teacher.id}`,
-      () => adminApi.setTeacherStatus(teacher.id, !teacher.isActive),
-      teacher.isActive ? 'Đã khóa tài khoản giáo viên' : 'Đã mở khóa tài khoản giáo viên'
-    );
-
   const toggleClassArchive = (classroom) =>
     runAction(
       `class-archive-${classroom.id}`,
@@ -287,104 +192,62 @@ export default function AdminDataPage() {
       classroom.isArchived ? 'Đã khôi phục lớp học' : 'Đã lưu trữ lớp học'
     );
 
-  const openDelete = (type, item) => setConfirm({ type, item });
+  const hasFilters = Boolean(debouncedSearch) || statusValue !== 'all' || Boolean(teacherFilterId);
 
-  const handleDelete = async () => {
-    if (!confirm) return;
-    setDeleting(true);
-    try {
-      const action = {
-        teacher: adminDataApi.deleteTeacher,
-        class: adminDataApi.deleteClass,
-        student: adminDataApi.deleteStudent,
-        exam: adminDataApi.deleteExam,
-      }[confirm.type];
-      await action(confirm.item.id);
-      toast.success('Đã xoá vĩnh viễn dữ liệu');
-      setConfirm(null);
-      refresh();
-    } catch (apiError) {
-      toast.error(getErrorMessage(apiError, 'Không thể xoá dữ liệu'));
-    } finally {
-      setDeleting(false);
-    }
+  if (!SECTIONS[section]) {
+    return <Navigate to="/admin/data/classes" replace />;
+  }
+
+  const renderClassActions = (classroom) => (
+    <div className="flex items-center justify-end gap-1">
+      <IconAction
+        label={classroom.isArchived ? 'Khôi phục lớp học' : 'Lưu trữ lớp học'}
+        icon={classroom.isArchived ? ArchiveRestore : Archive}
+        disabled={actionKey === `class-archive-${classroom.id}`}
+        onClick={() => toggleClassArchive(classroom)}
+      />
+      <IconAction
+        label="Xoá vĩnh viễn"
+        icon={Trash2}
+        tone="danger"
+        onClick={() => setDeleteTarget({ type: 'class', item: classroom })}
+      />
+    </div>
+  );
+
+  const renderDeleteAction = (type, item) => (
+    <div className="flex justify-end">
+      <IconAction
+        label="Xoá vĩnh viễn"
+        icon={Trash2}
+        tone="danger"
+        onClick={() => setDeleteTarget({ type, item })}
+      />
+    </div>
+  );
+
+  const renderTeacherLink = (teacher) => {
+    if (!teacher) return null;
+    return (
+      <Link
+        to={`/admin/teachers/${teacher.id}`}
+        className="block text-sm font-medium text-slate-700 hover:text-brand-700"
+      >
+        {teacher.fullName}
+        <span className="block text-xs font-normal text-slate-500">@{teacher.username}</span>
+      </Link>
+    );
   };
 
-  const deleteConfig = (() => {
-    if (!confirm) return null;
-    const { type, item } = confirm;
-    if (type === 'teacher') {
-      return {
-        title: 'Xoá vĩnh viễn giáo viên?',
-        description: `Tài khoản "${item.fullName}" sẽ bị xoá vĩnh viễn. Chỉ có thể xoá khi giáo viên không còn lớp học hoặc đề thi.`,
-      };
-    }
-    if (type === 'class') {
-      return {
-        title: 'Xoá vĩnh viễn lớp học?',
-        description: `Lớp "${item.name}" và ${item._count?.enrollments || 0} lượt ghi danh sẽ bị xoá vĩnh viễn. Chỉ có thể xoá khi không còn đề thi tham chiếu.`,
-      };
-    }
-    if (type === 'student') {
-      return {
-        title: 'Xoá vĩnh viễn học sinh?',
-        description: `Học sinh "${item.fullName}" sẽ bị xoá vĩnh viễn cùng ${item._count?.enrollments || 0} lớp và ${item._count?.examAttempts || 0} lượt thi. Thao tác không thể hoàn tác.`,
-      };
-    }
-    return {
-      title: 'Xoá vĩnh viễn đề thi?',
-      description: `Đề "${item.title}" sẽ bị xoá cùng ${item._count?.questions || 0} câu hỏi và ${item._count?.attempts || 0} lượt làm bài. Thao tác không thể hoàn tác.`,
-    };
-  })();
-
   const renderCells = () => {
-    if (tab === 'teachers') {
-      return data.items.map((teacher) => (
-        <tr key={teacher.id} className="table-row">
-          <td className="px-4 py-3">
-            <p className="font-semibold text-slate-900">{teacher.fullName}</p>
-            <p className="text-xs text-slate-500">@{teacher.username}</p>
-          </td>
-          <td className="px-4 py-3 text-slate-600">{teacher._count?.classes ?? 0}</td>
-          <td className="px-4 py-3 text-slate-600">{teacher._count?.exams ?? 0}</td>
-          <td className="px-4 py-3">
-            <Badge variant={teacher.isActive ? 'active' : 'locked'}>
-              {teacher.isActive ? 'Đang hoạt động' : 'Đã khóa'}
-            </Badge>
-          </td>
-          <td className="px-4 py-3 text-xs text-slate-500">{formatDate(teacher.createdAt)}</td>
-          <td className="px-4 py-3">
-            <div className="flex items-center justify-end gap-1">
-              <Button
-                variant="secondary"
-                size="sm"
-                icon={teacher.isActive ? Lock : Unlock}
-                loading={actionKey === `teacher-status-${teacher.id}`}
-                onClick={() => toggleTeacher(teacher)}
-              >
-                {teacher.isActive ? 'Khóa' : 'Mở khóa'}
-              </Button>
-              <DeleteButton
-                loading={deleting && confirm?.item.id === teacher.id}
-                onClick={() => openDelete('teacher', teacher)}
-              />
-            </div>
-          </td>
-        </tr>
-      ));
-    }
-
-    if (tab === 'classes') {
+    if (activeSection === 'classes') {
       return data.items.map((classroom) => (
         <tr key={classroom.id} className="table-row">
           <td className="px-4 py-3">
             <p className="font-semibold text-slate-900">{classroom.name}</p>
             <p className="text-xs text-slate-500">{classroom.classCode}</p>
           </td>
-          <td className="px-4 py-3">
-            <p className="text-sm text-slate-700">{classroom.teacher?.fullName}</p>
-            <p className="text-xs text-slate-500">@{classroom.teacher?.username}</p>
-          </td>
+          <td className="px-4 py-3">{renderTeacherLink(classroom.teacher)}</td>
           <td className="px-4 py-3 text-slate-600">{classroom._count?.enrollments ?? 0}</td>
           <td className="px-4 py-3">
             <Badge variant={classroom.isArchived ? 'warning' : 'active'}>
@@ -392,28 +255,12 @@ export default function AdminDataPage() {
             </Badge>
           </td>
           <td className="px-4 py-3 text-xs text-slate-500">{formatDate(classroom.createdAt)}</td>
-          <td className="px-4 py-3">
-            <div className="flex items-center justify-end gap-1">
-              <Button
-                variant="secondary"
-                size="sm"
-                icon={classroom.isArchived ? ArchiveRestore : Archive}
-                loading={actionKey === `class-archive-${classroom.id}`}
-                onClick={() => toggleClassArchive(classroom)}
-              >
-                {classroom.isArchived ? 'Khôi phục' : 'Lưu trữ'}
-              </Button>
-              <DeleteButton
-                loading={deleting && confirm?.item.id === classroom.id}
-                onClick={() => openDelete('class', classroom)}
-              />
-            </div>
-          </td>
+          <td className="px-4 py-3">{renderClassActions(classroom)}</td>
         </tr>
       ));
     }
 
-    if (tab === 'students') {
+    if (activeSection === 'students') {
       return data.items.map((student) => (
         <tr key={student.id} className="table-row">
           <td className="px-4 py-3">
@@ -435,14 +282,7 @@ export default function AdminDataPage() {
           </td>
           <td className="px-4 py-3 text-slate-600">{student._count?.examAttempts ?? 0}</td>
           <td className="px-4 py-3 text-xs text-slate-500">{formatDate(student.createdAt)}</td>
-          <td className="px-4 py-3">
-            <div className="flex justify-end">
-              <DeleteButton
-                loading={deleting && confirm?.item.id === student.id}
-                onClick={() => openDelete('student', student)}
-              />
-            </div>
-          </td>
+          <td className="px-4 py-3">{renderDeleteAction('student', student)}</td>
         </tr>
       ));
     }
@@ -453,9 +293,11 @@ export default function AdminDataPage() {
         <tr key={exam.id} className="table-row">
           <td className="px-4 py-3">
             <p className="font-semibold text-slate-900">{exam.title}</p>
-            <p className="text-xs text-slate-500">{exam.subject} · {exam.accessCode}</p>
+            <p className="text-xs text-slate-500">
+              {exam.subject} · {exam.accessCode}
+            </p>
           </td>
-          <td className="px-4 py-3 text-sm text-slate-700">{exam.teacher?.fullName}</td>
+          <td className="px-4 py-3">{renderTeacherLink(exam.teacher)}</td>
           <td className="px-4 py-3">
             <p className="text-sm text-slate-700">{exam.class?.name}</p>
             <p className="text-xs text-slate-500">{exam.class?.classCode}</p>
@@ -464,32 +306,115 @@ export default function AdminDataPage() {
             <Badge variant={statusMeta.variant}>{statusMeta.label}</Badge>
           </td>
           <td className="px-4 py-3 text-slate-600">{exam._count?.attempts ?? 0}</td>
-          <td className="px-4 py-3">
-            <div className="flex justify-end">
-              <DeleteButton
-                loading={deleting && confirm?.item.id === exam.id}
-                onClick={() => openDelete('exam', exam)}
-              />
-            </div>
-          </td>
+          <td className="px-4 py-3">{renderDeleteAction('exam', exam)}</td>
         </tr>
       );
     });
   };
 
-  const columns = {
-    teachers: ['Giáo viên', 'Lớp', 'Đề thi', 'Trạng thái', 'Ngày tạo', ''],
-    classes: ['Lớp học', 'Giáo viên', 'Học sinh', 'Trạng thái', 'Ngày tạo', ''],
-    students: ['Học sinh', 'Lớp', 'Lượt thi', 'Ngày tạo', ''],
-    exams: ['Đề thi', 'Giáo viên', 'Lớp', 'Trạng thái', 'Lượt thi', ''],
-  }[tab];
+  const renderCards = () => {
+    if (activeSection === 'classes') {
+      return data.items.map((classroom) => (
+        <div key={classroom.id} className="p-4">
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <p className="truncate font-semibold text-slate-900">{classroom.name}</p>
+              <p className="text-xs text-slate-500">{classroom.classCode}</p>
+            </div>
+            <Badge variant={classroom.isArchived ? 'warning' : 'active'}>
+              {classroom.isArchived ? 'Đã lưu trữ' : 'Đang hoạt động'}
+            </Badge>
+          </div>
+          <dl className="mt-3 grid grid-cols-2 gap-2">
+            <DetailStat
+              label="Giáo viên"
+              value={
+                classroom.teacher ? (
+                  <Link
+                    to={`/admin/teachers/${classroom.teacher.id}`}
+                    className="text-brand-600 hover:text-brand-700"
+                  >
+                    {classroom.teacher.fullName}
+                  </Link>
+                ) : (
+                  '—'
+                )
+              }
+            />
+            <DetailStat label="Học sinh" value={classroom._count?.enrollments ?? 0} />
+            <DetailStat label="Ngày tạo" value={formatDate(classroom.createdAt)} />
+          </dl>
+          <div className="mt-2 flex justify-end">{renderClassActions(classroom)}</div>
+        </div>
+      ));
+    }
+
+    if (activeSection === 'students') {
+      return data.items.map((student) => (
+        <div key={student.id} className="p-4">
+          <p className="font-semibold text-slate-900">{student.fullName}</p>
+          <p className="text-xs text-slate-500">{student.studentCode}</p>
+          <dl className="mt-3 grid grid-cols-2 gap-2">
+            <DetailStat
+              label="Lớp"
+              value={
+                student.enrollments?.length
+                  ? student.enrollments.map(({ class: classroom }) => classroom.name).join(', ')
+                  : 'Chưa vào lớp'
+              }
+            />
+            <DetailStat label="Lượt thi" value={student._count?.examAttempts ?? 0} />
+            <DetailStat label="Ngày tạo" value={formatDate(student.createdAt)} />
+          </dl>
+          <div className="mt-2 flex justify-end">{renderDeleteAction('student', student)}</div>
+        </div>
+      ));
+    }
+
+    return data.items.map((exam) => {
+      const statusMeta = EXAM_STATUS[exam.status] || EXAM_STATUS.DRAFT;
+      return (
+        <div key={exam.id} className="p-4">
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <p className="truncate font-semibold text-slate-900">{exam.title}</p>
+              <p className="text-xs text-slate-500">
+                {exam.subject} · {exam.accessCode}
+              </p>
+            </div>
+            <Badge variant={statusMeta.variant}>{statusMeta.label}</Badge>
+          </div>
+          <dl className="mt-3 grid grid-cols-2 gap-2">
+            <DetailStat
+              label="Giáo viên"
+              value={
+                exam.teacher ? (
+                  <Link
+                    to={`/admin/teachers/${exam.teacher.id}`}
+                    className="text-brand-600 hover:text-brand-700"
+                  >
+                    {exam.teacher.fullName}
+                  </Link>
+                ) : (
+                  '—'
+                )
+              }
+            />
+            <DetailStat label="Lớp" value={exam.class?.name || '—'} />
+            <DetailStat label="Lượt thi" value={exam._count?.attempts ?? 0} />
+          </dl>
+          <div className="mt-2 flex justify-end">{renderDeleteAction('exam', exam)}</div>
+        </div>
+      );
+    });
+  };
 
   return (
     <div>
       <PageHeader
-        eyebrow="Quản trị hệ thống"
-        title="Quản lý dữ liệu"
-        description="Quản lý toàn bộ giáo viên, lớp học, học sinh và đề thi, bao gồm dữ liệu đã khóa hoặc lưu trữ."
+        eyebrow="Dữ liệu toàn hệ thống"
+        title={config.title}
+        description={config.description}
         actions={
           <Button variant="secondary" icon={RefreshCcw} onClick={refresh}>
             Làm mới
@@ -497,104 +422,7 @@ export default function AdminDataPage() {
         }
       />
 
-      <div className="mb-4 grid grid-cols-2 gap-3 xl:grid-cols-4">
-        <SummaryCard
-          icon={Users}
-          label="Giáo viên"
-          value={summary?.teachers.total}
-          hint={`${summary?.teachers.locked ?? 0} đã khóa`}
-          tone="blue"
-        />
-        <SummaryCard
-          icon={BookOpen}
-          label="Lớp học"
-          value={summary?.classes.total}
-          hint={`${summary?.classes.archived ?? 0} đã lưu trữ`}
-          tone="amber"
-        />
-        <SummaryCard
-          icon={UserRound}
-          label="Học sinh"
-          value={summary?.students.total}
-          hint={`${summary?.attempts.total ?? 0} lượt thi`}
-          tone="emerald"
-        />
-        <SummaryCard
-          icon={ClipboardList}
-          label="Đề thi"
-          value={summary?.exams.total}
-          hint={`${summary?.exams.published ?? 0} đã công bố`}
-          tone="violet"
-        />
-      </div>
-
-      <section className="surface mb-4 p-4">
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-          <div className="flex items-start gap-3">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-slate-600">
-              <HardDrive className="h-5 w-5" />
-            </div>
-            <div>
-              <h2 className="text-sm font-semibold text-slate-900">Sao lưu &amp; khôi phục</h2>
-              <p className="mt-0.5 text-xs leading-5 text-slate-500">
-                Xuất toàn bộ giáo viên, lớp, học sinh, đề thi và lượt thi thành một file JSON.
-                File có chứa mật khẩu đã mã hoá, chỉ nên lưu ở nơi an toàn.
-              </p>
-            </div>
-          </div>
-          <div className="flex flex-col gap-2 sm:flex-row">
-            <Button
-              variant="secondary"
-              icon={Download}
-              loading={exporting}
-              onClick={handleExport}
-            >
-              Xuất dữ liệu
-            </Button>
-            <Button
-              variant="secondary"
-              icon={Upload}
-              onClick={() => importInputRef.current?.click()}
-            >
-              Nhập dữ liệu
-            </Button>
-            <input
-              ref={importInputRef}
-              type="file"
-              accept=".json,application/json"
-              className="hidden"
-              onChange={handleChooseBackup}
-            />
-          </div>
-        </div>
-      </section>
-
-      <div className="mb-4 flex flex-wrap gap-1.5">
-        {TABS.map((item) => {
-          const Icon = item.icon;
-          const count = summary?.[item.key]?.total;
-          return (
-            <button
-              key={item.key}
-              type="button"
-              onClick={() => changeTab(item.key)}
-              className={`focus-ring inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold transition ${
-                tab === item.key
-                  ? 'bg-brand-600 text-white'
-                  : 'border border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
-              }`}
-            >
-              <Icon className="h-4 w-4" />
-              {item.label}
-              {count !== undefined ? (
-                <span className={`text-xs ${tab === item.key ? 'text-brand-100' : 'text-slate-400'}`}>
-                  {count}
-                </span>
-              ) : null}
-            </button>
-          );
-        })}
-      </div>
+      <DataNav />
 
       <section className="surface overflow-hidden">
         <div className="flex flex-col gap-3 border-b border-slate-100 p-4 sm:flex-row sm:items-center sm:justify-between">
@@ -604,19 +432,20 @@ export default function AdminDataPage() {
               setSearchTerm(event.target.value);
               setPage(1);
             }}
-            placeholder="Tìm theo tên, mã, username..."
+            placeholder={config.placeholder}
             className="sm:max-w-xs"
           />
-          {STATUS_OPTIONS[tab].length ? (
+          {config.statusOptions.length ? (
             <Select
-              value={status}
+              value={statusValue}
               onChange={(event) => {
                 setStatus(event.target.value);
                 setPage(1);
               }}
               className="w-full sm:w-44"
+              aria-label="Lọc theo trạng thái"
             >
-              {STATUS_OPTIONS[tab].map((option) => (
+              {config.statusOptions.map((option) => (
                 <option key={option.value} value={option.value}>
                   {option.label}
                 </option>
@@ -625,9 +454,35 @@ export default function AdminDataPage() {
           ) : null}
         </div>
 
+        {teacherFilterId ? (
+          <div className="flex items-center justify-between gap-3 border-b border-brand-100 bg-brand-50/60 px-4 py-2.5 text-xs text-brand-800">
+            <span>
+              Đang lọc lớp của{' '}
+              <strong className="font-semibold">{teacherFilterName || 'giáo viên đã chọn'}</strong>
+            </span>
+            <button
+              type="button"
+              onClick={() => {
+                setSearchParams({}, { replace: true });
+                setPage(1);
+              }}
+              className="font-semibold underline-offset-2 hover:underline"
+            >
+              Bỏ lọc
+            </button>
+          </div>
+        ) : null}
+
         {error ? (
-          <div className="border-b border-rose-100 bg-rose-50 px-4 py-3 text-sm text-rose-700">
-            {error}
+          <div className="flex items-center justify-between gap-3 border-b border-rose-100 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+            <span>{error}</span>
+            <button
+              type="button"
+              className="inline-flex items-center gap-1 font-semibold"
+              onClick={refresh}
+            >
+              <RefreshCcw className="h-3.5 w-3.5" /> Thử lại
+            </button>
           </div>
         ) : null}
 
@@ -636,27 +491,54 @@ export default function AdminDataPage() {
         ) : data.items.length === 0 ? (
           <EmptyState
             icon={Database}
-            title="Không có dữ liệu"
-            description="Thử thay đổi bộ lọc hoặc từ khóa tìm kiếm."
+            title={hasFilters ? 'Không tìm thấy kết quả phù hợp' : config.emptyTitle}
+            description={
+              hasFilters
+                ? 'Hãy thử từ khóa khác hoặc bỏ bộ lọc trạng thái.'
+                : config.emptyDescription
+            }
+            action={
+              hasFilters ? (
+                <Button
+                  variant="secondary"
+                  onClick={() => {
+                    setSearchTerm('');
+                    setStatus('all');
+                    setPage(1);
+                  }}
+                >
+                  Xoá bộ lọc
+                </Button>
+              ) : null
+            }
           />
         ) : (
-          <div className={`overflow-x-auto ${loading ? 'opacity-60' : ''}`}>
-            <table className="w-full min-w-[900px] text-sm">
-              <thead>
-                <tr className="table-header">
-                  {columns.map((column, index) => (
-                    <th
-                      key={`${column}-${index}`}
-                      className={`px-4 py-3 font-semibold ${index === columns.length - 1 ? 'text-right' : ''}`}
-                    >
-                      {column}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>{renderCells()}</tbody>
-            </table>
-          </div>
+          <>
+            <div className={`hidden overflow-x-auto lg:block ${loading ? 'opacity-60' : ''}`}>
+              <table className="w-full min-w-[900px] text-sm">
+                <thead>
+                  <tr className="table-header">
+                    {config.columns.map((column, index) => (
+                      <th
+                        key={`${column}-${index}`}
+                        title={COLUMN_HINTS[column]}
+                        className={`px-4 py-3 font-semibold ${
+                          index === config.columns.length - 1 ? 'text-right' : ''
+                        }`}
+                      >
+                        {column}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>{renderCells()}</tbody>
+              </table>
+            </div>
+
+            <div className={`divide-y divide-slate-100 lg:hidden ${loading ? 'opacity-60' : ''}`}>
+              {renderCards()}
+            </div>
+          </>
         )}
 
         {data.pagination ? (
@@ -670,123 +552,10 @@ export default function AdminDataPage() {
         ) : null}
       </section>
 
-      <Modal
-        open={Boolean(importFile)}
-        onClose={closeImport}
-        title="Nhập bản sao lưu"
-        description="Chọn cách áp dụng dữ liệu từ file JSON."
-        size="md"
-        footer={
-          <>
-            <Button variant="secondary" onClick={closeImport} disabled={importing}>
-              Hủy
-            </Button>
-            <Button
-              variant={importMode === 'replace' ? 'danger' : 'primary'}
-              onClick={handleImport}
-              loading={importing}
-              disabled={importMode === 'replace' && !replaceConfirmed}
-            >
-              Nhập dữ liệu
-            </Button>
-          </>
-        }
-      >
-        {importFile ? (
-          <div className="space-y-4">
-            <div className="flex items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3">
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-white text-slate-500 shadow-sm">
-                <FileText className="h-5 w-5" />
-              </div>
-              <div className="min-w-0">
-                <p className="truncate text-sm font-semibold text-slate-900">{importFile.name}</p>
-                <p className="text-xs text-slate-500">{formatFileSize(importFile.size)}</p>
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <label
-                className={`flex cursor-pointer gap-3 rounded-xl border p-3 transition ${
-                  importMode === 'merge'
-                    ? 'border-brand-300 bg-brand-50/60'
-                    : 'border-slate-200 hover:bg-slate-50'
-                }`}
-              >
-                <input
-                  type="radio"
-                  name="backup-mode"
-                  value="merge"
-                  checked={importMode === 'merge'}
-                  onChange={() => {
-                    setImportMode('merge');
-                    setReplaceConfirmed(false);
-                  }}
-                  className="mt-1"
-                />
-                <span>
-                  <span className="block text-sm font-semibold text-slate-900">Hợp nhất</span>
-                  <span className="mt-0.5 block text-xs leading-5 text-slate-500">
-                    Thêm hoặc cập nhật bản ghi theo ID. Không xoá dữ liệu đang có.
-                  </span>
-                </span>
-              </label>
-
-              <label
-                className={`flex cursor-pointer gap-3 rounded-xl border p-3 transition ${
-                  importMode === 'replace'
-                    ? 'border-rose-300 bg-rose-50/60'
-                    : 'border-slate-200 hover:bg-slate-50'
-                }`}
-              >
-                <input
-                  type="radio"
-                  name="backup-mode"
-                  value="replace"
-                  checked={importMode === 'replace'}
-                  onChange={() => setImportMode('replace')}
-                  className="mt-1"
-                />
-                <span>
-                  <span className="block text-sm font-semibold text-slate-900">Thay thế toàn bộ</span>
-                  <span className="mt-0.5 block text-xs leading-5 text-slate-500">
-                    Xoá toàn bộ dữ liệu hiện tại rồi khôi phục từ file. Không thể hoàn tác.
-                  </span>
-                </span>
-              </label>
-            </div>
-
-            {importMode === 'replace' ? (
-              <div className="flex gap-3 rounded-xl border border-rose-200 bg-rose-50 p-3">
-                <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-rose-600" />
-                <div>
-                  <p className="text-xs leading-5 text-rose-700">
-                    Nếu file không chứa tài khoản Admin hiện tại, bạn sẽ bị đăng xuất và phải đăng
-                    nhập bằng tài khoản Admin trong file.
-                  </p>
-                  <label className="mt-2 flex cursor-pointer items-start gap-2 text-xs font-medium text-rose-700">
-                    <input
-                      type="checkbox"
-                      checked={replaceConfirmed}
-                      onChange={(event) => setReplaceConfirmed(event.target.checked)}
-                      className="mt-0.5"
-                    />
-                    Tôi hiểu và muốn thay thế toàn bộ dữ liệu
-                  </label>
-                </div>
-              </div>
-            ) : null}
-          </div>
-        ) : null}
-      </Modal>
-
-      <ConfirmDialog
-        open={Boolean(confirm)}
-        onClose={() => setConfirm(null)}
-        onConfirm={handleDelete}
-        title={deleteConfig?.title}
-        description={deleteConfig?.description}
-        confirmLabel="Xoá vĩnh viễn"
-        loading={deleting}
+      <DeleteEntityDialog
+        target={deleteTarget}
+        onClose={() => setDeleteTarget(null)}
+        onDeleted={refresh}
       />
     </div>
   );

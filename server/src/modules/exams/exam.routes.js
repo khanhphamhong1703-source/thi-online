@@ -29,6 +29,11 @@ router.post(
   examController.publishExam
 );
 router.post('/:id/close', validate({ params: examIdSchema }), examController.closeExam);
+router.post(
+  '/:id/regrade',
+  validate({ params: examIdSchema }),
+  examController.regradeExamAttempts
+);
 router.delete('/:id', validate({ params: examIdSchema }), examController.deleteExam);
 router.get(
   '/:id/attempts',

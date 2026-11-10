@@ -7,9 +7,12 @@ import {
   Lock,
   Plus,
   RefreshCcw,
+  Trash2,
   Unlock,
-  UserRound,
+  UserCheck,
+  UserPlus,
   Users,
+  UserX,
 } from 'lucide-react';
 import { adminApi } from '../../api/admin';
 import { getErrorMessage } from '../../api/client';
@@ -17,6 +20,7 @@ import { useToast } from '../../contexts/ToastContext';
 import { useDebounce } from '../../hooks/useDebounce';
 import { formatDate, getInitials } from '../../utils/format';
 import PageHeader from '../../components/PageHeader';
+import StatCard from '../../components/StatCard';
 import SearchInput from '../../components/SearchInput';
 import Select from '../../components/Select';
 import Button from '../../components/Button';
@@ -26,6 +30,7 @@ import EmptyState from '../../components/EmptyState';
 import LoadingState from '../../components/LoadingState';
 import ConfirmDialog from '../../components/ConfirmDialog';
 import ResetPasswordModal from '../../components/admin/ResetPasswordModal';
+import DeleteEntityDialog from '../../components/admin/DeleteEntityDialog';
 
 export default function TeacherListPage() {
   const toast = useToast();
@@ -40,6 +45,23 @@ export default function TeacherListPage() {
   const [statusTarget, setStatusTarget] = useState(null);
   const [statusLoading, setStatusLoading] = useState(false);
   const [resetTarget, setResetTarget] = useState(null);
+  const [deleteTarget, setDeleteTarget] = useState(null);
+  const [totals, setTotals] = useState(null);
+
+  useEffect(() => {
+    let active = true;
+    adminApi
+      .getDashboard()
+      .then(({ data }) => {
+        if (active) setTotals(data.data?.totals || null);
+      })
+      .catch(() => {
+        if (active) setTotals(null);
+      });
+    return () => {
+      active = false;
+    };
+  }, [reloadKey]);
 
   useEffect(() => {
     let active = true;
@@ -117,6 +139,37 @@ export default function TeacherListPage() {
           </Link>
         }
       />
+
+      <div className="mb-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <StatCard
+          label="Tổng số giáo viên"
+          value={totals?.teachers ?? 0}
+          icon={Users}
+          tone="blue"
+          hint="Toàn bộ tài khoản giáo viên"
+        />
+        <StatCard
+          label="Đang hoạt động"
+          value={totals?.active ?? 0}
+          icon={UserCheck}
+          tone="emerald"
+          hint="Có thể đăng nhập hệ thống"
+        />
+        <StatCard
+          label="Tài khoản bị khóa"
+          value={totals?.locked ?? 0}
+          icon={UserX}
+          tone="rose"
+          hint="Tạm thời không thể đăng nhập"
+        />
+        <StatCard
+          label="Giáo viên mới"
+          value={totals?.newTeachers ?? 0}
+          icon={UserPlus}
+          tone="violet"
+          hint="Được tạo trong 30 ngày qua"
+        />
+      </div>
 
       <div className="surface overflow-hidden">
         <div className="flex flex-col gap-3 border-b border-slate-100 p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5">
@@ -202,7 +255,7 @@ export default function TeacherListPage() {
           />
         ) : (
           <>
-            <div className="overflow-x-auto">
+            <div className="hidden overflow-x-auto lg:block">
               <table className="w-full min-w-[960px] text-sm">
                 <thead>
                   <tr className="table-header">
@@ -293,6 +346,15 @@ export default function TeacherListPage() {
                               <Unlock className="h-4 w-4" />
                             )}
                           </button>
+                          <button
+                            type="button"
+                            onClick={() => setDeleteTarget({ type: 'teacher', item: teacher })}
+                            className="focus-ring rounded-lg p-2 text-rose-500 transition hover:bg-rose-50 hover:text-rose-700"
+                            title="Xoá vĩnh viễn"
+                            aria-label={`Xoá vĩnh viễn ${teacher.fullName}`}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
                         </div>
                       </td>
                     </tr>
@@ -300,6 +362,112 @@ export default function TeacherListPage() {
                 </tbody>
               </table>
             </div>
+
+            <div className={`divide-y divide-slate-100 lg:hidden ${loading ? 'opacity-60' : ''}`}>
+              {data.items.map((teacher) => (
+                <div key={teacher.id} className="p-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex min-w-0 items-center gap-3">
+                      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-brand-50 text-xs font-bold text-brand-700">
+                        {getInitials(teacher.fullName)}
+                      </span>
+                      <div className="min-w-0">
+                        <Link
+                          to={`/admin/teachers/${teacher.id}`}
+                          className="block truncate font-semibold text-slate-900 hover:text-brand-700"
+                        >
+                          {teacher.fullName}
+                        </Link>
+                        <p className="truncate text-xs text-slate-500">@{teacher.username}</p>
+                      </div>
+                    </div>
+                    <StatusBadge active={teacher.isActive} />
+                  </div>
+
+                  <dl className="mt-3 grid grid-cols-2 gap-2">
+                    <div>
+                      <dt className="text-[11px] font-medium text-slate-500">Email</dt>
+                      <dd className="mt-0.5 truncate text-sm font-medium text-slate-800">
+                        {teacher.email || '—'}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt className="text-[11px] font-medium text-slate-500">Số điện thoại</dt>
+                      <dd className="mt-0.5 text-sm font-medium text-slate-800">
+                        {teacher.phone || '—'}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt className="text-[11px] font-medium text-slate-500">Lớp học</dt>
+                      <dd className="mt-0.5 text-sm font-medium text-slate-800">
+                        {teacher.classCount || 0}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt className="text-[11px] font-medium text-slate-500">Ngày tạo</dt>
+                      <dd className="mt-0.5 text-sm font-medium text-slate-800">
+                        {formatDate(teacher.createdAt)}
+                      </dd>
+                    </div>
+                  </dl>
+
+                  <div className="mt-2 flex items-center justify-end gap-1">
+                    <Link
+                      to={`/admin/teachers/${teacher.id}`}
+                      className="focus-ring rounded-lg p-2 text-slate-500 transition hover:bg-slate-100 hover:text-slate-800"
+                      title="Xem chi tiết"
+                      aria-label={`Xem chi tiết ${teacher.fullName}`}
+                    >
+                      <Eye className="h-4 w-4" />
+                    </Link>
+                    <Link
+                      to={`/admin/teachers/${teacher.id}/edit`}
+                      className="focus-ring rounded-lg p-2 text-slate-500 transition hover:bg-slate-100 hover:text-slate-800"
+                      title="Chỉnh sửa"
+                      aria-label={`Chỉnh sửa ${teacher.fullName}`}
+                    >
+                      <Edit3 className="h-4 w-4" />
+                    </Link>
+                    <button
+                      type="button"
+                      onClick={() => setResetTarget(teacher)}
+                      className="focus-ring rounded-lg p-2 text-slate-500 transition hover:bg-slate-100 hover:text-slate-800"
+                      title="Đặt lại mật khẩu"
+                      aria-label={`Đặt lại mật khẩu ${teacher.fullName}`}
+                    >
+                      <KeyRound className="h-4 w-4" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setStatusTarget(teacher)}
+                      className={
+                        teacher.isActive
+                          ? 'focus-ring rounded-lg p-2 text-rose-500 transition hover:bg-rose-50 hover:text-rose-700'
+                          : 'focus-ring rounded-lg p-2 text-emerald-600 transition hover:bg-emerald-50 hover:text-emerald-700'
+                      }
+                      title={teacher.isActive ? 'Khóa tài khoản' : 'Mở khóa tài khoản'}
+                      aria-label={`${teacher.isActive ? 'Khóa' : 'Mở khóa'} ${teacher.fullName}`}
+                    >
+                      {teacher.isActive ? (
+                        <Lock className="h-4 w-4" />
+                      ) : (
+                        <Unlock className="h-4 w-4" />
+                      )}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setDeleteTarget({ type: 'teacher', item: teacher })}
+                      className="focus-ring rounded-lg p-2 text-rose-500 transition hover:bg-rose-50 hover:text-rose-700"
+                      title="Xoá vĩnh viễn"
+                      aria-label={`Xoá vĩnh viễn ${teacher.fullName}`}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+
             <Pagination
               page={pagination.page}
               totalPages={pagination.totalPages}
@@ -330,6 +498,12 @@ export default function TeacherListPage() {
         teacher={resetTarget || {}}
         open={Boolean(resetTarget)}
         onClose={() => setResetTarget(null)}
+      />
+
+      <DeleteEntityDialog
+        target={deleteTarget}
+        onClose={() => setDeleteTarget(null)}
+        onDeleted={() => setReloadKey((value) => value + 1)}
       />
     </div>
   );
