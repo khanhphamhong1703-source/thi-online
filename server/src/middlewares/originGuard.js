@@ -1,4 +1,4 @@
-const { allowedOrigins } = require('../config/origins');
+const { isAllowedOrigin } = require('../config/origins');
 const ApiError = require('../utils/ApiError');
 
 const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
@@ -8,7 +8,7 @@ function originGuard(req, _res, next) {
   if (SAFE_METHODS.has(req.method)) return next();
 
   const origin = req.get('origin');
-  if (origin && !allowedOrigins.has(origin)) {
+  if (origin && !isAllowedOrigin(origin, req)) {
     return next(new ApiError(403, 'Nguồn gửi yêu cầu không hợp lệ'));
   }
 

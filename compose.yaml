@@ -1,0 +1,58 @@
+x-orthex-preview:
+  webService: client
+  webPort: 80
+  healthPath: /
+  databaseService: mongodb
+services:
+  mongodb:
+    image: mongo:7
+    command: ["--replSet", "rs0", "--bind_ip_all"]
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - >
+          mongosh --quiet --eval "try { rs.status().ok } catch (e) { rs.initiate({_id:'rs0',members:[{_id:0,host:'mongodb:27017'}]}).ok }"
+      interval: 10s
+      timeout: 10s
+      retries: 20
+      start_period: 15s
+    volumes:
+      - mongodb_data:/data/db
+  server:
+    build:
+      context: server
+      dockerfile: Dockerfile
+    environment:
+      NODE_ENV: production
+      PORT: "5050"
+      MONGODB_URI: mongodb://mongodb:27017/thi_online?replicaSet=rs0
+      JWT_SECRET: change_this_to_a_long_random_secret_at_least_32_chars
+      JWT_EXPIRES_IN: 7d
+      COOKIE_NAME: token
+      COOKIE_SECURE: "true"
+      TRUST_PROXY: "2"
+      SEED_ADMIN_USERNAME: admin
+      SEED_ADMIN_PASSWORD: Admin@123456
+      SEED_ADMIN_FULLNAME: Quản trị viên
+      SEED_ADMIN_EMAIL: admin@example.com
+    depends_on:
+      - mongodb
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - >
+          node -e "fetch('http://127.0.0.1:5050/api/health').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 60s
+  client:
+    build:
+      context: client
+      dockerfile: Dockerfile
+    depends_on:
+      - server
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1/ || exit 1"]
+volumes:
+  mongodb_data: {}

@@ -228,6 +228,9 @@ export default function ExamDetailPage() {
                       <p key={classroom.id} className="flex items-center gap-2">
                         <Users className="h-4 w-4 shrink-0 text-slate-400" />
                         {classroom.name} ({classroom.classCode})
+                        {classroom.isArchived ? (
+                          <Badge variant="warning">Đã lưu trữ</Badge>
+                        ) : null}
                       </p>
                     ))
                   ) : (

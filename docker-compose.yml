@@ -59,6 +59,8 @@ services:
     build:
       context: ./client
       dockerfile: Dockerfile
+      args:
+        NGINX_CONF: nginx.conf
     container_name: thi-online-client
     restart: unless-stopped
     ports:

@@ -6,6 +6,7 @@ const classSelect = {
   name: true,
   classCode: true,
   schoolYear: true,
+  isArchived: true,
 };
 
 function getExamClassIds(exam) {

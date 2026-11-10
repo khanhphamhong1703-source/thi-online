@@ -299,6 +299,10 @@ async function publishExam(examId, teacherId) {
   if (!getExamClassIds(exam).length) {
     throw new ApiError(400, 'Cần gán ít nhất một lớp trước khi công bố đề thi');
   }
+  const publishClasses = await getClassesByIds(getExamClassIds(exam));
+  if (!publishClasses.some((classroom) => !classroom.isArchived)) {
+    throw new ApiError(400, 'Đề thi cần ít nhất một lớp đang hoạt động trước khi công bố');
+  }
   if (new Date(exam.closeAt).getTime() <= Date.now()) {
     throw new ApiError(400, 'Thời gian kết thúc phải ở tương lai trước khi công bố');
   }

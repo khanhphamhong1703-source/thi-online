@@ -28,7 +28,11 @@ const publicClassSelect = {
   name: true,
   classCode: true,
   schoolYear: true,
+  isArchived: true,
 };
+
+const ARCHIVED_CLASS_MESSAGE =
+  'Lớp học của học sinh đã được lưu trữ. Vui lòng liên hệ giáo viên để được hỗ trợ.';
 
 const publicExamInclude = {
   class: { select: publicClassSelect },
@@ -58,6 +62,9 @@ function signAttemptToken(attemptId) {
 function publicExamSummary(exam, classes = []) {
   const trueFalseScores = normalizeTrueFalseScores(exam.trueFalseScores);
   const totals = calculateTotals(exam.questions || [], trueFalseScores);
+  const activeClasses = classes.filter((classroom) => !classroom.isArchived);
+  const primaryClass =
+    exam.class && !exam.class.isArchived ? exam.class : activeClasses[0];
   return {
     id: exam.id,
     title: exam.title,
@@ -72,17 +79,27 @@ function publicExamSummary(exam, classes = []) {
     phase: getExamPhase(exam),
     questionCount: totals.questionCount,
     totalPoints: totals.totalPoints,
-    className: exam.class?.name,
-    classCode: exam.class?.classCode,
-    schoolYear: exam.class?.schoolYear,
-    classes,
+    className: primaryClass?.name,
+    classCode: primaryClass?.classCode,
+    schoolYear: primaryClass?.schoolYear,
+    classes: activeClasses,
     teacherName: exam.teacher?.fullName,
   };
 }
 
 async function listPublicExams({ page, limit, search }) {
   const { page: safePage, limit: safeLimit, skip } = getPagination(page, limit);
-  const where = { status: EXAM_STATUS.PUBLISHED };
+  const activeClassIds = (
+    await prisma.class.findMany({ where: { isArchived: false }, select: { id: true } })
+  ).map((classroom) => classroom.id);
+  if (!activeClassIds.length) {
+    return { items: [], pagination: paginationMeta(0, safePage, safeLimit) };
+  }
+
+  const where = {
+    status: EXAM_STATUS.PUBLISHED,
+    OR: [{ classIds: { hasSome: activeClassIds } }, { classId: { in: activeClassIds } }],
+  };
   if (search) where.searchText = { contains: search.toLowerCase() };
 
   const [exams, total] = await Promise.all([
@@ -120,7 +137,22 @@ async function getPublicExam(examId) {
   if (!exam) {
     throw new ApiError(404, 'Không tìm thấy đề thi đang công bố');
   }
-  return publicExamSummary(exam, await getClassesByIds(getExamClassIds(exam)));
+  const summary = publicExamSummary(exam, await getClassesByIds(getExamClassIds(exam)));
+  if (!summary.classes.length) {
+    throw new ApiError(404, 'Không tìm thấy đề thi đang công bố');
+  }
+  return summary;
+}
+
+async function findEnrollmentWithActiveClass(studentId, classIds) {
+  const enrollments = await prisma.enrollment.findMany({
+    where: { studentId, classId: { in: classIds } },
+    include: { class: { select: publicClassSelect } },
+  });
+  return {
+    enrollment: enrollments.find((item) => !item.class.isArchived) || null,
+    hasArchived: enrollments.some((item) => item.class.isArchived),
+  };
 }
 
 async function lookupExamStudent({ accessCode, studentCode }) {
@@ -142,17 +174,15 @@ async function lookupExamStudent({ accessCode, studentCode }) {
   }
 
   const examClassIds = getExamClassIds(exam);
-  const enrollment = await prisma.enrollment.findFirst({
-    where: {
-      studentId: student.id,
-      classId: { in: examClassIds },
-    },
-    include: {
-      class: { select: publicClassSelect },
-    },
-  });
+  const { enrollment, hasArchived } = await findEnrollmentWithActiveClass(
+    student.id,
+    examClassIds
+  );
   if (!enrollment) {
-    throw new ApiError(403, 'Học sinh không thuộc lớp của đề thi');
+    throw new ApiError(
+      403,
+      hasArchived ? ARCHIVED_CLASS_MESSAGE : 'Học sinh không thuộc lớp của đề thi'
+    );
   }
 
   const attempts = await prisma.examAttempt.findMany({
@@ -456,14 +486,15 @@ async function startAttempt(examId, { studentCode, accessCode }) {
   }
 
   const examClassIds = getExamClassIds(exam);
-  const enrollment = await prisma.enrollment.findFirst({
-    where: {
-      studentId: student.id,
-      classId: { in: examClassIds },
-    },
-  });
+  const { enrollment, hasArchived } = await findEnrollmentWithActiveClass(
+    student.id,
+    examClassIds
+  );
   if (!enrollment) {
-    throw new ApiError(403, 'Học sinh không thuộc lớp của đề thi');
+    throw new ApiError(
+      403,
+      hasArchived ? ARCHIVED_CLASS_MESSAGE : 'Học sinh không thuộc lớp của đề thi'
+    );
   }
 
   let attempts = await prisma.examAttempt.findMany({

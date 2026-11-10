@@ -192,7 +192,13 @@ export default function ExamListPage() {
                     const statusMeta = getExamDisplayStatus(exam);
                     const examClasses = exam.classes?.length ? exam.classes : [];
                     const classNames = examClasses.length
-                      ? examClasses.map((classroom) => classroom.name).join(', ')
+                      ? examClasses
+                          .map((classroom) =>
+                            classroom.isArchived
+                              ? `${classroom.name} (đã lưu trữ)`
+                              : classroom.name
+                          )
+                          .join(', ')
                       : exam.class?.name || '—';
                     const classCodes = examClasses.length
                       ? examClasses.map((classroom) => classroom.classCode).join(', ')

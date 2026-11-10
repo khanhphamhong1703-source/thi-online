@@ -14,7 +14,9 @@ concurrency:
 
 jobs:
   deploy:
-    runs-on: self-hosted
+    runs-on: [self-hosted, linux]
+    timeout-minutes: 20
+    environment: production
 
     steps:
       - name: Pull latest source
@@ -22,8 +24,13 @@ jobs:
           DEPLOY_PATH: ${{ vars.DEPLOY_PATH }}
         run: |
           set -euo pipefail
-          test -n "$DEPLOY_PATH"
+          : "${DEPLOY_PATH:?Thiếu biến DEPLOY_PATH}"
           cd "$DEPLOY_PATH"
+          if [ -n "$(git status --porcelain --untracked-files=no)" ]; then
+            echo "Máy chủ có thay đổi cục bộ trong mã nguồn, dừng deploy:" >&2
+            git status --short --untracked-files=no >&2
+            exit 1
+          fi
           git fetch origin main
           git checkout main
           git pull --ff-only origin main
@@ -33,18 +40,22 @@ jobs:
           DEPLOY_PATH: ${{ vars.DEPLOY_PATH }}
         run: |
           set -euo pipefail
+          : "${DEPLOY_PATH:?Thiếu biến DEPLOY_PATH}"
           cd "$DEPLOY_PATH"
           docker compose -f docker-compose.prod.yml \
             --env-file .env.production \
             --profile tunnel up -d --build
 
-      - name: Wait for API health
+      - name: Wait for health
         env:
           DEPLOY_PATH: ${{ vars.DEPLOY_PATH }}
+          PUBLIC_URL: ${{ vars.PUBLIC_URL || 'https://viexam.io.vn' }}
         run: |
           set -euo pipefail
+          : "${DEPLOY_PATH:?Thiếu biến DEPLOY_PATH}"
           for i in $(seq 1 24); do
-            if curl -fsS https://viexam.io.vn/api/health >/dev/null; then
+            if curl -fsS --max-time 10 "$PUBLIC_URL/api/health" >/dev/null \
+              && curl -fsS --max-time 10 "$PUBLIC_URL/" >/dev/null; then
               echo "Health check passed"
               exit 0
             fi

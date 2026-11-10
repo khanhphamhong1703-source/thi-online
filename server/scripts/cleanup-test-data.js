@@ -2,6 +2,7 @@ const prisma = require('../src/config/prisma');
 
 const TEST_USERNAME_PREFIXES = [
   'admin.data.',
+  'archive.class.',
   'attempt.detail.',
   'attempt.limit.',
   'class.filter.',
