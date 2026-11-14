@@ -1,11 +1,16 @@
 const bcrypt = require('bcryptjs');
-const jwt = require('jsonwebtoken');
-const env = require('../../config/env');
 const prisma = require('../../config/prisma');
 const ApiError = require('../../utils/ApiError');
 const { toPublicUser } = require('../../utils/serialize');
+const {
+  issueSession,
+  rotateRefreshToken,
+  revokeRefreshToken,
+  revokeAllSessions,
+  toTokenVersion,
+} = require('./auth.tokens');
 
-async function login({ username, password, expectedRole }) {
+async function login({ username, password, expectedRole }, meta) {
   const normalizedUsername = username.trim().toLowerCase();
   const user = await prisma.user.findUnique({ where: { username: normalizedUsername } });
 
@@ -31,11 +36,18 @@ async function login({ username, password, expectedRole }) {
     throw new ApiError(403, 'Tài khoản đã bị khóa. Vui lòng liên hệ quản trị viên.');
   }
 
-  const token = jwt.sign({ sub: user.id, role: user.role }, env.JWT_SECRET, {
-    expiresIn: env.JWT_EXPIRES_IN,
-  });
+  const session = await issueSession(user, meta);
 
-  return { token, user: toPublicUser(user) };
+  return { ...session, user: toPublicUser(user) };
+}
+
+async function refresh(rawRefreshToken, meta) {
+  const session = await rotateRefreshToken(rawRefreshToken, meta);
+  return { ...session, user: toPublicUser(session.user) };
+}
+
+async function logout(rawRefreshToken) {
+  await revokeRefreshToken(rawRefreshToken);
 }
 
 async function getMe(userId) {
@@ -46,7 +58,7 @@ async function getMe(userId) {
   return toPublicUser(user);
 }
 
-async function changePassword(userId, { currentPassword, newPassword }) {
+async function changePassword(userId, { currentPassword, newPassword }, meta) {
   const user = await prisma.user.findUnique({ where: { id: userId } });
   if (!user) {
     throw new ApiError(404, 'Không tìm thấy tài khoản');
@@ -58,10 +70,10 @@ async function changePassword(userId, { currentPassword, newPassword }) {
   }
 
   const passwordHash = await bcrypt.hash(newPassword, 10);
-  await prisma.user.update({
-    where: { id: userId },
-    data: { password: passwordHash },
+  const nextVersion = await revokeAllSessions(user.id, toTokenVersion(user), {
+    password: passwordHash,
   });
+  return issueSession({ ...user, password: passwordHash, tokenVersion: nextVersion }, meta);
 }
 
-module.exports = { login, getMe, changePassword };
+module.exports = { login, refresh, logout, getMe, changePassword };

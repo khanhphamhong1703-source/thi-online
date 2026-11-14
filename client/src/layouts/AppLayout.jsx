@@ -8,6 +8,7 @@ import {
   Database,
   GraduationCap,
   History,
+  Laptop,
   LayoutDashboard,
   LogOut,
   Menu,
@@ -32,6 +33,7 @@ const NAVIGATION = {
       icon: Database,
     },
     { to: '/admin/activity', label: 'Lịch sử hoạt động', icon: History },
+    { to: '/admin/sessions', label: 'Phiên đăng nhập', icon: Laptop },
     { to: '/admin/settings', label: 'Hệ thống', icon: Settings },
   ],
   TEACHER: [

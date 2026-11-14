@@ -43,11 +43,11 @@ const CONTENT = {
     badge: 'Không gian giáo viên',
     title: 'Lớp học gọn gàng, đề thi rõ ràng.',
     description:
-      'Quản lý lớp học, học sinh và soạn đề trắc nghiệm. Cài đặt ca thi, công bố đề và theo dõi kết quả trong một không gian duy nhất.',
+      'Quản lý lớp học, học sinh và soạn đề trắc nghiệm. Cài đặt ca thi, thời gian mở–đóng và theo dõi kết quả trong một không gian duy nhất.',
     icon: BookOpen,
     features: [
       'Quản lý lớp học theo từng giáo viên',
-      'Soạn đề, cài đặt ca thi và công bố',
+      'Soạn đề, cài đặt ca thi và theo dõi kết quả',
       'Theo dõi kết quả làm bài của học sinh',
     ],
   },

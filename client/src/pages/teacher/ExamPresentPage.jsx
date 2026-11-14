@@ -233,7 +233,7 @@ export default function ExamPresentPage() {
                 Hết hạn
               </p>
               <p className="mt-1.5 text-sm font-semibold text-slate-200">
-                {formatDateTime(exam.closeAt)}
+                {exam.closeAt ? formatDateTime(exam.closeAt) : 'Không giới hạn'}
               </p>
             </div>
           </div>

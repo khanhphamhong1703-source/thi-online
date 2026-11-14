@@ -4,7 +4,6 @@ const env = require('../../config/env');
 const ApiError = require('../../utils/ApiError');
 const { getPagination, paginationMeta } = require('../../utils/pagination');
 const {
-  EXAM_STATUS,
   ATTEMPT_STATUS,
   getExamPhase,
   calculateTotals,
@@ -97,7 +96,6 @@ async function listPublicExams({ page, limit, search }) {
   }
 
   const where = {
-    status: EXAM_STATUS.PUBLISHED,
     OR: [{ classIds: { hasSome: activeClassIds } }, { classId: { in: activeClassIds } }],
   };
   if (search) where.searchText = { contains: search.toLowerCase() };
@@ -131,15 +129,15 @@ async function listPublicExams({ page, limit, search }) {
 
 async function getPublicExam(examId) {
   const exam = await prisma.exam.findFirst({
-    where: { id: examId, status: EXAM_STATUS.PUBLISHED },
+    where: { id: examId },
     include: publicExamInclude,
   });
   if (!exam) {
-    throw new ApiError(404, 'Không tìm thấy đề thi đang công bố');
+    throw new ApiError(404, 'Không tìm thấy đề thi');
   }
   const summary = publicExamSummary(exam, await getClassesByIds(getExamClassIds(exam)));
   if (!summary.classes.length) {
-    throw new ApiError(404, 'Không tìm thấy đề thi đang công bố');
+    throw new ApiError(404, 'Không tìm thấy đề thi');
   }
   return summary;
 }
@@ -161,8 +159,8 @@ async function lookupExamStudent({ accessCode, studentCode }) {
     where: { accessCode: normalizedAccessCode },
     include: publicExamInclude,
   });
-  if (!exam || exam.status !== EXAM_STATUS.PUBLISHED) {
-    throw new ApiError(404, 'Mã ca thi không tồn tại hoặc chưa được công bố');
+  if (!exam) {
+    throw new ApiError(404, 'Mã ca thi không tồn tại');
   }
 
   const normalizedStudentCode = studentCode.trim().toUpperCase();
@@ -444,8 +442,7 @@ async function finalizeAttempt(attempt, answers, autoSubmitted = false) {
 function attemptExpired(attempt, now = new Date()) {
   return (
     now >= new Date(attempt.expiresAt) ||
-    now >= new Date(attempt.exam.closeAt) ||
-    attempt.exam.status === EXAM_STATUS.CLOSED
+    (attempt.exam.closeAt && now >= new Date(attempt.exam.closeAt))
   );
 }
 
@@ -548,7 +545,7 @@ async function getAttemptForStudent(attemptId) {
 
 async function startAttempt(examId, { studentCode, accessCode }) {
   const exam = await prisma.exam.findFirst({
-    where: { id: examId, status: EXAM_STATUS.PUBLISHED },
+    where: { id: examId },
     include: {
       class: { select: publicClassSelect },
       teacher: { select: { fullName: true } },
@@ -556,7 +553,7 @@ async function startAttempt(examId, { studentCode, accessCode }) {
     },
   });
   if (!exam) {
-    throw new ApiError(404, 'Đề thi không tồn tại hoặc chưa được công bố');
+    throw new ApiError(404, 'Đề thi không tồn tại');
   }
 
   const now = new Date();
@@ -619,8 +616,9 @@ async function startAttempt(examId, { studentCode, accessCode }) {
     throw new ApiError(409, `Bạn đã sử dụng hết ${exam.maxAttempts} lượt làm bài`);
   }
 
+  const durationEnd = now.getTime() + exam.durationMinutes * 60 * 1000;
   const expiresAt = new Date(
-    Math.min(now.getTime() + exam.durationMinutes * 60 * 1000, new Date(exam.closeAt).getTime())
+    exam.closeAt ? Math.min(durationEnd, new Date(exam.closeAt).getTime()) : durationEnd
   );
   if (expiresAt <= now) {
     throw new ApiError(400, 'Ca thi đã kết thúc');

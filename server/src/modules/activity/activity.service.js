@@ -14,8 +14,16 @@ const ACTOR_FALLBACK = {
 function parseUserAgent(userAgent = '') {
   const ua = String(userAgent);
   let device = 'Máy tính';
-  if (/iPad|Tablet/i.test(ua)) device = 'Máy tính bảng';
-  else if (/Mobile|Android|iPhone/i.test(ua)) device = 'Điện thoại';
+  if (/iPhone/i.test(ua)) device = 'iPhone';
+  else if (/iPad/i.test(ua)) device = 'Máy tính bảng iPad';
+  else if (/Android/i.test(ua)) {
+    device = /Mobile/i.test(ua) ? 'Điện thoại Android' : 'Máy tính bảng Android';
+  } else if (/Windows/i.test(ua)) device = 'Máy tính Windows';
+  else if (/CrOS/i.test(ua)) device = 'Máy tính ChromeOS';
+  else if (/Macintosh|Mac OS X/i.test(ua)) device = 'Máy tính macOS';
+  else if (/Linux/i.test(ua)) device = 'Máy tính Linux';
+  else if (/Tablet/i.test(ua)) device = 'Máy tính bảng';
+  else if (/Mobile/i.test(ua)) device = 'Điện thoại';
 
   let browser = 'Khác';
   if (/Edg\//i.test(ua)) browser = 'Edge';
@@ -105,11 +113,22 @@ async function recordActivity({
   }
 }
 
-function buildActivityWhere({ actorId, teacherId, category, status, action, search, from, to }) {
+function buildActivityWhere({
+  actorId,
+  teacherId,
+  category,
+  status,
+  action,
+  search,
+  from,
+  to,
+  includeAuth = true,
+}) {
   const where = {};
   const ownerId = teacherId || actorId;
   if (ownerId) where.actorId = ownerId;
-  if (category) where.category = category;
+  if (!includeAuth) where.category = { not: 'AUTH' };
+  else if (category) where.category = category;
   if (status) where.status = status;
   if (action) where.action = action;
   if (search) where.searchText = { contains: normalizeSearchText(search) };
@@ -143,7 +162,6 @@ function examLogData(exam) {
     title: exam.title,
     subject: exam.subject,
     durationMinutes: exam.durationMinutes,
-    status: exam.status,
     classNames: (exam.classes || []).map((classroom) => classroom.name),
     questionCount: exam.questionCount ?? exam.questions?.length ?? 0,
     attemptCount: exam.attemptCount ?? exam._count?.attempts ?? 0,

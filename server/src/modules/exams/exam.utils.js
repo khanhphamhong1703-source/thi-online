@@ -1,12 +1,6 @@
 const crypto = require('crypto');
 const { getQuestionMaxPoints } = require('./exam.grading');
 
-const EXAM_STATUS = {
-  DRAFT: 'DRAFT',
-  PUBLISHED: 'PUBLISHED',
-  CLOSED: 'CLOSED',
-};
-
 const ATTEMPT_STATUS = {
   IN_PROGRESS: 'IN_PROGRESS',
   SUBMITTED: 'SUBMITTED',
@@ -24,8 +18,7 @@ function generateAccessCode(length = 6) {
 }
 
 function getExamPhase(exam, now = new Date()) {
-  if (exam.status === EXAM_STATUS.CLOSED) return 'ENDED';
-  if (now >= new Date(exam.closeAt)) return 'ENDED';
+  if (exam.closeAt && now >= new Date(exam.closeAt)) return 'ENDED';
   if (now < new Date(exam.openAt)) return 'UPCOMING';
   return 'OPEN';
 }
@@ -84,7 +77,6 @@ function roundScore(value) {
 }
 
 module.exports = {
-  EXAM_STATUS,
   ATTEMPT_STATUS,
   generateAccessCode,
   getExamPhase,

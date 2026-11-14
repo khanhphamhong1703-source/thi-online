@@ -5,6 +5,7 @@ import { adminDataApi } from '../../api/adminData';
 import { getErrorMessage } from '../../api/client';
 import { useToast } from '../../contexts/ToastContext';
 import { formatDate } from '../../utils/format';
+import { getExamDisplayStatus } from '../../utils/exam';
 import Button from '../../components/Button';
 import Badge from '../../components/Badge';
 import EmptyState from '../../components/EmptyState';
@@ -24,18 +25,7 @@ const STATUS_OPTIONS = {
     { value: 'archived', label: 'Đã lưu trữ' },
   ],
   students: [],
-  exams: [
-    { value: 'all', label: 'Tất cả trạng thái' },
-    { value: 'DRAFT', label: 'Bản nháp' },
-    { value: 'PUBLISHED', label: 'Đã công bố' },
-    { value: 'CLOSED', label: 'Đã đóng' },
-  ],
-};
-
-const EXAM_STATUS = {
-  DRAFT: { label: 'Bản nháp', variant: 'warning' },
-  PUBLISHED: { label: 'Đã công bố', variant: 'active' },
-  CLOSED: { label: 'Đã đóng', variant: 'locked' },
+  exams: [],
 };
 
 const COLUMN_HINTS = {
@@ -285,7 +275,7 @@ export default function AdminDataPage() {
     }
 
     return data.items.map((exam) => {
-      const statusMeta = EXAM_STATUS[exam.status] || EXAM_STATUS.DRAFT;
+      const statusMeta = getExamDisplayStatus(exam);
       return (
         <tr key={exam.id} className="table-row">
           <td className="px-4 py-3">
@@ -369,7 +359,7 @@ export default function AdminDataPage() {
     }
 
     return data.items.map((exam) => {
-      const statusMeta = EXAM_STATUS[exam.status] || EXAM_STATUS.DRAFT;
+      const statusMeta = getExamDisplayStatus(exam);
       return (
         <div key={exam.id} className="p-4">
           <div className="flex items-start justify-between gap-3">

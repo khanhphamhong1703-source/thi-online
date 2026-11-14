@@ -4,12 +4,20 @@ export const SECTION_TITLES = {
   III: 'Trả lời ngắn',
 };
 
+export function getExamPhase(exam, now = Date.now()) {
+  if (!exam) return 'ENDED';
+  if (exam.phase) return exam.phase;
+  const closeAt = exam.closeAt ? new Date(exam.closeAt).getTime() : null;
+  if (closeAt !== null && now >= closeAt) return 'ENDED';
+  if (exam.openAt && now < new Date(exam.openAt).getTime()) return 'UPCOMING';
+  return 'OPEN';
+}
+
 export function getExamDisplayStatus(exam) {
   if (!exam) return { label: '—', variant: 'neutral' };
-  if (exam.status === 'DRAFT') return { label: 'Bản nháp', variant: 'neutral' };
-  if (exam.status === 'CLOSED') return { label: 'Đã đóng', variant: 'warning' };
-  if (exam.phase === 'OPEN') return { label: 'Đang mở', variant: 'active' };
-  if (exam.phase === 'UPCOMING') return { label: 'Sắp mở', variant: 'warning' };
+  const phase = getExamPhase(exam);
+  if (phase === 'OPEN') return { label: 'Đang mở', variant: 'active' };
+  if (phase === 'UPCOMING') return { label: 'Sắp mở', variant: 'warning' };
   return { label: 'Đã kết thúc', variant: 'neutral' };
 }
 

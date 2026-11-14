@@ -80,7 +80,13 @@ const examFields = {
     .max(20, 'Tối đa 20 lớp cho một đề thi'),
   durationMinutes: z.coerce.number().int().min(1, 'Thời lượng tối thiểu 1 phút').max(300),
   openAt: z.coerce.date({ message: 'Thời gian mở không hợp lệ' }),
-  closeAt: z.coerce.date({ message: 'Thời gian đóng không hợp lệ' }),
+  closeAt: z.preprocess(
+    (value) => (value === '' || value === null ? null : value),
+    z.coerce
+      .date({ message: 'Thời gian đóng không hợp lệ' })
+      .nullable()
+      .optional()
+  ),
   maxAttempts: z.coerce
     .number()
     .int()
@@ -104,7 +110,9 @@ const examFields = {
 
 function withDateOrder(schema) {
   return schema.refine(
-    (data) => new Date(data.closeAt).getTime() > new Date(data.openAt).getTime(),
+    (data) =>
+      !data.closeAt ||
+      new Date(data.closeAt).getTime() > new Date(data.openAt).getTime(),
     {
       message: 'Thời gian kết thúc phải sau thời gian mở',
       path: ['closeAt'],
@@ -130,7 +138,6 @@ const listExamsQuerySchema = z.object({
   page: z.coerce.number().int().positive().default(1),
   limit: z.coerce.number().int().positive().max(100).default(10),
   search: z.string().trim().max(100).optional().default(''),
-  status: z.enum(['all', 'DRAFT', 'PUBLISHED', 'CLOSED']).optional().default('all'),
   classId: objectId.optional(),
 });
 

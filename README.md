@@ -4,7 +4,7 @@
 
 - **Trang mặc định `/` là cổng tra cứu ca thi** để học sinh nhập mã ca thi và mã học sinh.
 - **Học sinh** xác danh bằng mã học sinh và mã ca thi, làm bài có đồng hồ đếm ngược, lưu tạm và nhận kết quả theo cài đặt của giáo viên.
-- **Giáo viên** đăng nhập để quản lý lớp, học sinh, soạn đề trắc nghiệm, cài đặt ca thi, công bố đề và xem kết quả.
+- **Giáo viên** đăng nhập để quản lý lớp, học sinh, soạn đề trắc nghiệm, cài đặt ca thi và xem kết quả.
 - **Admin** quản lý tài khoản giáo viên.
 
 Trang chủ chỉ có lối vào dành cho thi cử, không hiển thị lối vào Giáo viên hoặc Admin. Hai cổng đăng nhập cũng không có liên kết chuyển đổi sang nhau; truy cập trực tiếp bằng URL tương ứng.
@@ -40,16 +40,16 @@ Học sinh chưa có tài khoản đăng nhập. Việc xác danh dựa trên m�
 - Phần III: trả lời ngắn bằng 4 ô ký tự theo quy tắc ô 1 cho `-`/0–9, ô 2–3 cho `,`/0–9, ô 4 cho 0–9.
 - Nhập điểm cho từng phần và chia đều điểm đó cho các câu hỏi trong phần.
 - Bảng câu hỏi bên cạnh nhóm theo phần, chỉ hiển thị số thứ tự; nhấn số để nhảy nhanh tới câu. Trên mobile, bảng mở dạng drawer từ bên phải.
-- Một đề thi có thể giao cho một hoặc nhiều lớp. Có thể lưu đề khi chưa gán lớp và gán sau; cần ít nhất một lớp trước khi công bố.
+- Một đề thi có thể giao cho một hoặc nhiều lớp. Có thể lưu đề khi chưa gán lớp và gán sau.
 - Cài đặt ca thi:
-  - thời gian mở/đóng;
+  - thời gian mở/đóng (để trống thời gian đóng nếu không giới hạn);
   - thời lượng làm bài;
   - số lượt làm tối đa (0 = không giới hạn);
   - trộn câu hỏi, trộn đáp án;
   - công bố điểm sau khi nộp.
-- Công bố đề để đưa lên bảng thi.
-- Chỉnh sửa đề cả sau khi đã công bố, miễn là không có học sinh đang làm bài; trạng thái đề được giữ nguyên.
-- Đóng ca thi.
+- Đề tự xuất hiện trên bảng thi và học sinh chỉ làm được trong khoảng thời gian mở–đóng.
+- Chỉnh sửa đề bất kỳ lúc nào, miễn là không có học sinh đang làm bài.
+- Đề chưa có lượt làm bài thì xóa được; đề đã có lượt làm bài thì giữ lại để bảo toàn kết quả.
 - Xem lượt làm bài, thời gian nộp, trạng thái và điểm của học sinh; lọc kết quả theo lớp.
 - Xem chi tiết từng bài làm: đáp án đã chọn, đáp án đúng và điểm của từng câu.
 - Xem thống kê điểm trung bình, cao nhất, thấp nhất và biểu đồ phân bố điểm.
@@ -79,7 +79,7 @@ Học sinh chưa có tài khoản đăng nhập. Việc xác danh dựa trên m�
 | Backend | Node.js + ExpressJS |
 | Database | MongoDB |
 | ORM | Prisma 6 |
-| Authentication | JWT trong cookie HttpOnly cho Admin/Giáo viên |
+| Authentication | Access token + refresh token trong cookie HttpOnly cho Admin/Giáo viên; refresh token lưu hash trong DB và xoay vòng |
 | Phiên làm bài | JWT riêng cho từng lượt thi |
 | Password | bcryptjs |
 | Excel | ExcelJS |
@@ -206,6 +206,8 @@ HTTPS_PORT=443
 CLIENT_URL=https://your-domain.com
 CERTS_DIR=./certs
 JWT_SECRET=<chuỗi-ngẫu-nhiên-tối-thiểu-32-ký-tự>
+ACCESS_TOKEN_TTL_MINUTES=15
+REFRESH_TOKEN_TTL_DAYS=7
 SEED_ADMIN_PASSWORD=<mật-khẩu-admin-mạnh>
 ```
 
@@ -235,7 +237,7 @@ Các đặc điểm của cấu hình production:
 - Chỉ map `${HTTPS_PORT}` ra ngoài; không publish `27017` (MongoDB) và `5050` (API).
 - `COOKIE_SECURE=true` và `TRUST_PROXY=1` cố định.
 - `client/nginx.conf` lấy IP người dùng thật từ header `CF-Connecting-IP` của Cloudflare (chỉ tin khi request đến từ mạng Docker nội bộ) rồi chuyển `X-Forwarded-For` xuống API. Nhờ vậy rate limit (đăng nhập, tra cứu ca thi) và IP trong lịch sử hoạt động tính theo từng người dùng, không bị gộp chung IP của container `cloudflared`. Khi sửa file này phải build lại container `client`.
-- Bắt buộc có `CLIENT_URL`, `JWT_SECRET` và `SEED_ADMIN_PASSWORD`; thiếu biến nào Compose sẽ dừng.
+- Bắt buộc có `CLIENT_URL`, `JWT_SECRET` và `SEED_ADMIN_PASSWORD`; thiếu biến nào Compose sẽ dừng. API cũng từ chối chạy production nếu `JWT_SECRET` hoặc `SEED_ADMIN_PASSWORD` vẫn là giá trị mẫu.
 - `SEED_ADMIN_RESET_PASSWORD=false`: khởi động lại container không ghi đè mật khẩu Admin đã đổi. Lần đầu trên database mới vẫn tạo Admin từ `SEED_ADMIN_PASSWORD`.
 - Log Docker được giới hạn `10m` mỗi file, giữ 3 file.
 
@@ -346,8 +348,10 @@ PORT=5050
 CLIENT_URL=http://localhost:5180
 MONGODB_URI=mongodb://127.0.0.1:27017/thi_online?replicaSet=rs0
 JWT_SECRET=<chuỗi-ngẫu-nhiên-tối-thiểu-32-ký-tự>
-JWT_EXPIRES_IN=7d
-COOKIE_NAME=token
+ACCESS_TOKEN_TTL_MINUTES=15
+REFRESH_TOKEN_TTL_DAYS=7
+ACCESS_COOKIE_NAME=access_token
+REFRESH_COOKIE_NAME=refresh_token
 COOKIE_SECURE=false
 TRUST_PROXY=1
 
@@ -355,6 +359,7 @@ SEED_ADMIN_USERNAME=admin
 SEED_ADMIN_PASSWORD=<mật-khẩu-admin>
 SEED_ADMIN_FULLNAME=Quản trị viên
 SEED_ADMIN_EMAIL=admin@example.com
+SEED_ADMIN_RESET_PASSWORD=false
 ```
 
 Không commit file `.env`.
@@ -380,9 +385,9 @@ npm run db:push
 npm run seed
 ```
 
-- `db:push` tạo collection/index cho `users`, `classes`, `students`, `enrollments`, `exams`, `questions`, `exam_attempts`.
+- `db:push` tạo collection/index cho `users`, `refresh_tokens`, `classes`, `students`, `enrollments`, `exams`, `questions`, `exam_attempts`.
 - `seed` tạo hoặc cập nhật Admin theo biến `SEED_ADMIN_*`.
-- Seed lại sẽ đặt lại mật khẩu Admin theo `SEED_ADMIN_PASSWORD`.
+- Seed lại chỉ đặt lại mật khẩu Admin khi `SEED_ADMIN_RESET_PASSWORD=true`; khi đặt lại, mọi phiên đăng nhập cũ của Admin bị thu hồi.
 
 ### 5.5. Chạy ứng dụng
 
@@ -411,18 +416,18 @@ Trang chủ `/` không hiển thị nút đăng nhập Giáo viên/Admin. Giáo 
 
 ```text
 Username: admin
-Password: Admin@123456
+Password: <giá trị SEED_ADMIN_PASSWORD trong server/.env>
 ```
 
-Mật khẩu thực tế lấy từ `server/.env` (`SEED_ADMIN_PASSWORD`). Đổi mật khẩu trước khi dùng ngoài môi trường phát triển.
+Mật khẩu thực tế lấy từ `server/.env` (`SEED_ADMIN_PASSWORD`). Không dùng mật khẩu mẫu và đổi mật khẩu trước khi triển khai ngoài môi trường phát triển.
 
 ## 6. Luồng thi
 
 1. Admin tạo tài khoản giáo viên.
 2. Giáo viên đăng nhập, tạo lớp và thêm học sinh.
 3. Giáo viên tạo đề: nhập thông tin, cài đặt ca thi và soạn câu hỏi.
-4. Giáo viên bấm **Công bố**.
-5. Đề xuất hiện trên bảng thi tại `/`.
+4. Đề xuất hiện trên bảng thi tại `/` và tự mở/đóng theo thời gian đã đặt.
+5. Ngoài khoảng thời gian mở–đóng, học sinh không bắt đầu làm được.
 6. Giáo viên gửi học sinh **mã học sinh** và **mã ca thi**.
 7. Học sinh mở ca thi, nhập hai mã và bắt đầu làm bài.
 8. Hệ thống lưu tạm, đếm ngược và tự nộp khi hết giờ.
@@ -458,23 +463,17 @@ Class
 
 ### Trạng thái
 
-`Exam.status`:
-
-- `DRAFT`: bản nháp, chỉ giáo viên thấy.
-- `PUBLISHED`: đã công bố, có thể xuất hiện trên bảng thi.
-- `CLOSED`: giáo viên đã đóng.
-
 `Exam.phase` được tính từ thời gian:
 
 - `UPCOMING`: chưa mở.
 - `OPEN`: đang mở.
-- `ENDED`: đã hết giờ hoặc đã đóng.
+- `ENDED`: đã hết giờ đóng; `closeAt` trống nghĩa là không giới hạn.
 
 `ExamAttempt.status`:
 
 - `IN_PROGRESS`: đang làm.
 - `SUBMITTED`: học sinh nộp.
-- `AUTO_SUBMITTED`: hệ thống tự nộp khi hết giờ/đóng ca.
+- `AUTO_SUBMITTED`: hệ thống tự nộp khi hết giờ làm bài hoặc quá giờ đóng.
 
 ### Mã học sinh
 
@@ -539,9 +538,7 @@ Class
 | POST | `/api/classes/:classId/students/import/error-report` | Báo cáo dòng lỗi |
 | GET/POST | `/api/exams` | Danh sách / tạo đề kèm câu hỏi |
 | POST | `/api/exams/import-text` | Đọc nội dung từ file `.docx` / `.txt` |
-| GET/PATCH/DELETE | `/api/exams/:id` | Chi tiết / sửa / xóa đề nháp |
-| POST | `/api/exams/:id/publish` | Công bố đề |
-| POST | `/api/exams/:id/close` | Đóng ca thi |
+| GET/PATCH/DELETE | `/api/exams/:id` | Chi tiết / sửa / xóa đề chưa có lượt làm |
 | GET | `/api/exams/:id/attempts?classId=...` | Kết quả làm bài, lọc theo lớp |
 | GET | `/api/exams/:id/attempts/:attemptId` | Chi tiết bài làm và đáp án từng câu |
 | GET | `/api/exams/:id/results/export?classId=...` | Xuất Excel bảng điểm theo lớp |
@@ -553,7 +550,7 @@ Danh sách trả về `{ success, data, pagination }`. Mutation trả về `{ su
 
 | Method | Endpoint | Mô tả |
 |---|---|---|
-| GET | `/api/public/exams` | Bảng thi đã công bố |
+| GET | `/api/public/exams` | Bảng thi của các lớp đang hoạt động |
 | GET | `/api/public/exams/:id` | Thông tin ca thi, không lộ câu hỏi |
 | POST | `/api/public/exams/lookup` | Tra cứu ca thi và học sinh theo hai mã |
 | POST | `/api/public/exams/:id/start` | Xác danh và bắt đầu/resume lượt thi |
@@ -580,7 +577,7 @@ Thời gian làm bài:
 expiresAt = min(now + duration, exam.closeAt)
 ```
 
-Khi hết thời gian hoặc ca bị đóng, backend tự chấm và chuyển lượt làm sang `AUTO_SUBMITTED`. Lượt quá hạn được chốt khi giáo viên mở kết quả, xuất Excel, sửa đề, đóng ca hoặc bấm "Chấm lại" ở trang kết quả (không chạy bộ quét định kỳ), nên học sinh không nộp bài vẫn có điểm từ phần đã lưu. Không có gia hạn: đáp án gửi lên sau `expiresAt` bị bỏ qua, chỉ phần đã lưu trước giờ mới được chấm. Nút "Chấm lại" chấm lại toàn bộ bài đã nộp theo đáp án hiện tại của đề, dùng khi giáo viên sửa đáp án.
+Khi hết thời gian làm bài hoặc quá giờ đóng, backend tự chấm và chuyển lượt làm sang `AUTO_SUBMITTED`. Lượt quá hạn được chốt khi giáo viên mở kết quả, xuất Excel, sửa đề hoặc bấm "Chấm lại" ở trang kết quả (không chạy bộ quét định kỳ), nên học sinh không nộp bài vẫn có điểm từ phần đã lưu. Không có gia hạn: đáp án gửi lên sau `expiresAt` bị bỏ qua, chỉ phần đã lưu trước giờ mới được chấm. Nút "Chấm lại" chấm lại toàn bộ bài đã nộp theo đáp án hiện tại của đề, dùng khi giáo viên sửa đáp án.
 
 ## 10. Chấm điểm và bảo mật
 
@@ -703,11 +700,11 @@ Quy tắc:
 6. Nhập câu hỏi từ file `.docx` và `.txt`; sửa văn bản ở editor và kiểm tra preview.
 7. Thử câu thiếu đáp án/đáp án đúng → câu đó bị đánh dấu lỗi và không import.
 8. Cài đặt thời gian, số lượt, trộn câu/đáp án; xác nhận trộn câu giữ nguyên thứ tự phần.
-9. Công bố đề.
-10. Đề xuất hiện trên bảng thi `/`.
-11. Đề nháp không xuất hiện công khai.
-12. Không sửa được đề đã công bố.
-13. Đóng ca thi.
+9. Đề xuất hiện trên bảng thi `/`.
+10. Trong khoảng mở–đóng, học sinh bắt đầu làm được; ngoài khoảng thì không.
+11. Để trống thời gian đóng → không giới hạn thời gian đóng.
+12. Không sửa được đề khi đang có học sinh làm bài.
+13. Đề đã có lượt làm bài không xóa được.
 
 ### Học sinh
 
@@ -717,7 +714,7 @@ Quy tắc:
 4. Chọn đáp án, chờ lưu tạm.
 5. Nộp bài → điểm đúng theo đáp án.
 6. Làm quá số lượt → bị chặn.
-7. Đóng ca thi hoặc hết giờ → lượt làm tự nộp.
+7. Hết thời gian làm bài hoặc quá giờ đóng → lượt làm tự nộp.
 8. `showScore=false` → học sinh không thấy điểm.
 
 ### Responsive
@@ -732,7 +729,7 @@ Kiểm tra bảng thi, phòng thi, form soạn đề và bảng kết quả trê
 - Không có tự luận, chấm điểm thủ công.
 - Không có chống gian lận nâng cao, giám sát webcam hay khóa trình duyệt.
 - Không có biểu đồ thống kê chuyên sâu.
-- Đề đã công bố không thể chỉnh sửa; cần tạo đề mới nếu muốn thay đổi.
+- Không thể xóa đề đã có lượt làm bài.
 - Không có chức năng mở lại lớp đã lưu trữ trên giao diện.
 - Không có nhân bản đề hoặc nhiều mã đề trong cùng ca thi.
 

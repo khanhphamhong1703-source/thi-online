@@ -20,6 +20,7 @@ const studentRoutes = require('./modules/students/student.routes');
 const examRoutes = require('./modules/exams/exam.routes');
 const publicExamRoutes = require('./modules/exams/public-exam.routes');
 const activityRoutes = require('./modules/activity/activity.routes');
+const sessionRoutes = require('./modules/sessions/session.routes');
 
 const app = express();
 
@@ -46,7 +47,11 @@ app.use(cookieParser());
 app.use(originGuard);
 
 if (env.NODE_ENV !== 'test') {
-  app.use(morgan(env.NODE_ENV === 'production' ? 'combined' : 'dev'));
+  app.use(
+    morgan(env.NODE_ENV === 'production' ? 'combined' : 'dev', {
+      skip: (req) => req.path === '/api/health',
+    })
+  );
 }
 
 app.get('/api/health', (_req, res) => {
@@ -54,6 +59,7 @@ app.get('/api/health', (_req, res) => {
 });
 
 app.use('/api/auth', authRoutes);
+app.use('/api/admin/sessions', authenticate, requireRole('ADMIN'), sessionRoutes);
 app.use('/api/admin/data', authenticate, requireRole('ADMIN'), adminDataRoutes);
 app.use('/api/admin', authenticate, requireRole('ADMIN'), userRoutes);
 app.use('/api/teacher/activity', authenticate, requireRole('TEACHER'), activityRoutes);

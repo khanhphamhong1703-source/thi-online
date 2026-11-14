@@ -6,6 +6,7 @@ import {
   KeyRound,
   LogIn,
   RefreshCcw,
+  SlidersHorizontal,
   UserRound,
 } from 'lucide-react';
 import { activityApi } from '../../api/activity';
@@ -13,7 +14,7 @@ import { getErrorMessage } from '../../api/client';
 import { useDebounce } from '../../hooks/useDebounce';
 import { formatDate, formatDateTime } from '../../utils/format';
 import {
-  ACTIVITY_CATEGORIES,
+  TEACHER_ACTIVITY_CATEGORIES,
   ACTIVITY_DATA_LABELS,
   ACTIVITY_STATUS,
   describeActivityData,
@@ -82,6 +83,7 @@ export default function ActivityPage() {
   const [error, setError] = useState('');
   const [selected, setSelected] = useState(null);
   const [reloadKey, setReloadKey] = useState(0);
+  const [filtersOpen, setFiltersOpen] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -135,6 +137,8 @@ export default function ActivityPage() {
     setPage(1);
   };
 
+  const activeFilterCount = (category !== 'all' ? 1 : 0) + (from ? 1 : 0) + (to ? 1 : 0);
+
   const selectedStatus = selected ? ACTIVITY_STATUS[selected.status] || ACTIVITY_STATUS.SUCCESS : null;
 
   return (
@@ -142,17 +146,51 @@ export default function ActivityPage() {
       <PageHeader title="Lịch sử hoạt động" fill />
 
       <section className="surface mb-4 shrink-0 p-4">
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-          <SearchInput
-            value={searchTerm}
-            onChange={(event) => {
-              setSearchTerm(event.target.value);
-              setPage(1);
-            }}
-            placeholder="Tìm theo tên lớp, học sinh, đề thi..."
-            className="lg:max-w-xs"
-          />
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+        <div className="flex flex-col gap-3">
+          <div className="flex items-center gap-2">
+            <SearchInput
+              value={searchTerm}
+              onChange={(event) => {
+                setSearchTerm(event.target.value);
+                setPage(1);
+              }}
+              placeholder="Tìm theo tên lớp, học sinh, đề thi..."
+              className="min-w-0 flex-1 lg:max-w-xs"
+            />
+            <button
+              type="button"
+              onClick={() => setFiltersOpen((value) => !value)}
+              className="focus-ring inline-flex h-10 shrink-0 items-center gap-2 rounded-lg border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 sm:hidden"
+              aria-expanded={filtersOpen}
+              aria-controls="activity-filters"
+            >
+              <SlidersHorizontal className="h-4 w-4" />
+              Bộ lọc
+              {activeFilterCount ? (
+                <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-brand-600 px-1 text-[11px] font-bold text-white">
+                  {activeFilterCount}
+                </span>
+              ) : null}
+            </button>
+            <Button
+              variant="secondary"
+              icon={RefreshCcw}
+              onClick={() => setReloadKey((value) => value + 1)}
+              className="ml-auto shrink-0"
+              aria-label="Làm mới"
+              title="Làm mới"
+            >
+              <span className="hidden sm:inline">Làm mới</span>
+            </Button>
+          </div>
+          <div
+            id="activity-filters"
+            className={
+              filtersOpen
+                ? 'flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center'
+                : 'hidden flex-col gap-2 sm:flex sm:flex-row sm:flex-wrap sm:items-center'
+            }
+          >
             <Select
               value={category}
               aria-label="Nhóm hoạt động"
@@ -163,7 +201,7 @@ export default function ActivityPage() {
               className="w-full sm:w-40"
             >
               <option value="all">Tất cả hoạt động</option>
-              {ACTIVITY_CATEGORIES.map((item) => (
+              {TEACHER_ACTIVITY_CATEGORIES.map((item) => (
                 <option key={item.value} value={item.value}>
                   {item.label}
                 </option>
@@ -194,16 +232,11 @@ export default function ActivityPage() {
                 aria-label="Đến ngày"
               />
             </div>
-            <Button variant="ghost" onClick={resetFilters}>
-              Xoá lọc
-            </Button>
-            <Button
-              variant="secondary"
-              icon={RefreshCcw}
-              onClick={() => setReloadKey((value) => value + 1)}
-            >
-              Làm mới
-            </Button>
+            {activeFilterCount || searchTerm ? (
+              <Button variant="ghost" onClick={resetFilters} className="self-start sm:self-auto">
+                Xoá lọc
+              </Button>
+            ) : null}
           </div>
         </div>
       </section>

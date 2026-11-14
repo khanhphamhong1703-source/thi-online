@@ -6,6 +6,7 @@ const listMine = asyncHandler(async (req, res) => {
     ...req.query,
     actorId: req.user.id,
     teacherId: undefined,
+    includeAuth: false,
   });
   res.json({ success: true, data: result.items, pagination: result.pagination });
 });

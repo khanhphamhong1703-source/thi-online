@@ -1,15 +1,41 @@
 const env = require('../../config/env');
 const asyncHandler = require('../../utils/asyncHandler');
-const { authCookieOptions, clearCookieOptions } = require('../../utils/cookies');
+const ApiError = require('../../utils/ApiError');
+const {
+  accessCookieOptions,
+  refreshCookieOptions,
+  clearAccessCookieOptions,
+  clearRefreshCookieOptions,
+} = require('../../utils/cookies');
 const authService = require('./auth.service');
 const { recordActivity } = require('../activity/activity.service');
 
+function requestMeta(req) {
+  return {
+    userAgent: req.get('user-agent'),
+    ip: req.ip,
+  };
+}
+
+function setAuthCookies(res, { accessToken, refreshToken }) {
+  res.cookie(env.ACCESS_COOKIE_NAME, accessToken, accessCookieOptions());
+  res.cookie(env.REFRESH_COOKIE_NAME, refreshToken, refreshCookieOptions());
+}
+
+function clearAuthCookies(res) {
+  res.clearCookie(env.ACCESS_COOKIE_NAME, clearAccessCookieOptions());
+  res.clearCookie(env.REFRESH_COOKIE_NAME, clearRefreshCookieOptions());
+}
+
 const login = asyncHandler(async (req, res) => {
   try {
-    const { token, user } = await authService.login(req.body);
-    res.cookie(env.COOKIE_NAME, token, authCookieOptions());
+    const { accessToken, refreshToken, user } = await authService.login(
+      req.body,
+      requestMeta(req)
+    );
+    setAuthCookies(res, { accessToken, refreshToken });
 
-    if (user.role === 'TEACHER') {
+    if (user.role === 'TEACHER' || user.role === 'ADMIN') {
       await recordActivity({
         req,
         actor: user,
@@ -20,7 +46,8 @@ const login = asyncHandler(async (req, res) => {
 
     res.json({ success: true, message: 'Đăng nhập thành công', user });
   } catch (error) {
-    if (req.body?.expectedRole === 'TEACHER') {
+    const expectedRole = req.body?.expectedRole;
+    if (expectedRole === 'TEACHER' || expectedRole === 'ADMIN') {
       const username = String(req.body?.username || '').trim();
       await recordActivity({
         req,
@@ -28,7 +55,7 @@ const login = asyncHandler(async (req, res) => {
           id: null,
           username: username || 'không xác định',
           fullName: username || 'Không xác định',
-          role: 'TEACHER',
+          role: expectedRole,
         },
         category: 'AUTH',
         action: 'AUTH_LOGIN_FAILED',
@@ -40,8 +67,23 @@ const login = asyncHandler(async (req, res) => {
   }
 });
 
-const logout = asyncHandler(async (_req, res) => {
-  res.clearCookie(env.COOKIE_NAME, clearCookieOptions());
+const refresh = asyncHandler(async (req, res) => {
+  const rawRefreshToken = req.cookies?.[env.REFRESH_COOKIE_NAME];
+  if (!rawRefreshToken) {
+    throw new ApiError(401, 'Phiên đăng nhập không hợp lệ hoặc đã hết hạn');
+  }
+
+  const session = await authService.refresh(rawRefreshToken, requestMeta(req));
+  setAuthCookies(res, session);
+  res.json({ success: true, user: session.user });
+});
+
+const logout = asyncHandler(async (req, res) => {
+  try {
+    await authService.logout(req.cookies?.[env.REFRESH_COOKIE_NAME]);
+  } finally {
+    clearAuthCookies(res);
+  }
   res.json({ success: true, message: 'Đã đăng xuất' });
 });
 
@@ -51,7 +93,8 @@ const me = asyncHandler(async (req, res) => {
 });
 
 const changePassword = asyncHandler(async (req, res) => {
-  await authService.changePassword(req.user.id, req.body);
+  const session = await authService.changePassword(req.user.id, req.body, requestMeta(req));
+  setAuthCookies(res, session);
 
   if (req.user.role === 'TEACHER') {
     await recordActivity({
@@ -64,4 +107,4 @@ const changePassword = asyncHandler(async (req, res) => {
   res.json({ success: true, message: 'Đổi mật khẩu thành công' });
 });
 
-module.exports = { login, logout, me, changePassword };
+module.exports = { login, refresh, logout, me, changePassword };

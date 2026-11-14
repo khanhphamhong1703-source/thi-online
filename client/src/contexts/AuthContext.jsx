@@ -31,8 +31,10 @@ export function AuthProvider({ children }) {
       const { data } = await authApi.me();
       setUser(data.user);
       return data.user;
-    } catch {
-      setUser(null);
+    } catch (error) {
+      if (error.response?.status === 401) {
+        setUser(null);
+      }
       return null;
     } finally {
       setAuthLoading(false);

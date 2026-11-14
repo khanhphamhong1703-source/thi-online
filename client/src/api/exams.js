@@ -10,8 +10,6 @@ export const examApi = {
     formData.append('file', file);
     return api.post('/exams/import-text', formData);
   },
-  publish: (id) => api.post(`/exams/${id}/publish`),
-  close: (id) => api.post(`/exams/${id}/close`),
   regrade: (id) => api.post(`/exams/${id}/regrade`),
   remove: (id) => api.delete(`/exams/${id}`),
   results: (id, params) => api.get(`/exams/${id}/attempts`, { params }),

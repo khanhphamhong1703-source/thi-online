@@ -57,7 +57,7 @@ const schema = z
     description: z.string().trim().max(1000, 'Mô tả tối đa 1000 ký tự').optional(),
     durationMinutes: z.coerce.number().int().min(1, 'Tối thiểu 1 phút').max(300, 'Tối đa 300 phút'),
     openAt: z.string().min(1, 'Chọn thời gian mở'),
-    closeAt: z.string().min(1, 'Chọn thời gian đóng'),
+    closeAt: z.string().optional(),
     maxAttempts: z.coerce
       .number()
       .int()
@@ -67,7 +67,7 @@ const schema = z
     shuffleOptions: z.boolean(),
     showScore: z.boolean(),
   })
-  .refine((data) => new Date(data.closeAt) > new Date(data.openAt), {
+  .refine((data) => !data.closeAt || new Date(data.closeAt) > new Date(data.openAt), {
     message: 'Thời gian đóng phải sau thời gian mở',
     path: ['closeAt'],
   });
@@ -79,7 +79,7 @@ export default function ExamFormPage({ mode }) {
   const toast = useToast();
   const initialWindow = useMemo(() => defaultExamWindow(), []);
   const [classes, setClasses] = useState([]);
-  const [questions, setQuestions] = useState(() => [blankQuestion('I')]);
+  const [questions, setQuestions] = useState([]);
   const [activeQuestionId, setActiveQuestionId] = useState(null);
   const [questionErrors, setQuestionErrors] = useState([]);
   const [trueFalseScores, setTrueFalseScores] = useState(() =>
@@ -498,6 +498,11 @@ export default function ExamFormPage({ mode }) {
       setSubmitError('Điểm các mức Đúng/Sai không hợp lệ. Mức 4/4 phải lớn hơn 0.');
       return;
     }
+    if (!questions.length) {
+      setActiveTab('questions');
+      setSubmitError('Đề thi cần ít nhất một câu hỏi trước khi lưu.');
+      return;
+    }
     const validation = validateQuestions();
     if (!validation.valid) {
       setActiveTab('questions');
@@ -517,7 +522,7 @@ export default function ExamFormPage({ mode }) {
         description: values.description || '',
         durationMinutes: Number(values.durationMinutes),
         openAt: new Date(values.openAt).toISOString(),
-        closeAt: new Date(values.closeAt).toISOString(),
+        closeAt: values.closeAt ? new Date(values.closeAt).toISOString() : null,
         maxAttempts: Number(values.maxAttempts),
         shuffleQuestions: Boolean(values.shuffleQuestions),
         shuffleOptions: Boolean(values.shuffleOptions),
@@ -911,17 +916,15 @@ export default function ExamFormPage({ mode }) {
                                           </option>
                                         ))}
                                       </select>
-                                      {questions.length > 1 ? (
-                                        <button
-                                          type="button"
-                                          onClick={() => removeQuestion(questionIndex)}
-                                          className="focus-ring inline-flex h-8 w-8 items-center justify-center rounded-md text-slate-400 transition hover:bg-rose-50 hover:text-rose-600"
-                                          title="Xóa câu hỏi"
-                                          aria-label={`Xóa câu hỏi ${questionIndex + 1}`}
-                                        >
-                                          <Trash2 className="h-4 w-4" />
-                                        </button>
-                                      ) : null}
+                                      <button
+                                        type="button"
+                                        onClick={() => removeQuestion(questionIndex)}
+                                        className="focus-ring inline-flex h-8 w-8 items-center justify-center rounded-md text-slate-400 transition hover:bg-rose-50 hover:text-rose-600"
+                                        title="Xóa câu hỏi"
+                                        aria-label={`Xóa câu hỏi ${questionIndex + 1}`}
+                                      >
+                                        <Trash2 className="h-4 w-4" />
+                                      </button>
                                     </div>
                                   </div>
 
@@ -1315,7 +1318,7 @@ export default function ExamFormPage({ mode }) {
                 <FormField
                   label="Thời gian đóng"
                   htmlFor="closeAt"
-                  required
+                  hint="Để trống nếu không giới hạn thời gian đóng."
                   error={errors.closeAt?.message}
                 >
                   <Input

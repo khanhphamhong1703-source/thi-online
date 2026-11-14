@@ -81,7 +81,7 @@ export default function AdminDashboardPage() {
       tone: 'bg-violet-50 text-violet-600',
       label: 'Đề thi',
       value: summary?.exams.total,
-      hint: `${summary?.exams.published ?? 0} đề đã công bố`,
+      hint: `${summary?.exams.open ?? 0} đề đang mở`,
     },
   ];
 

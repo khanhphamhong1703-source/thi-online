@@ -24,12 +24,6 @@ router.patch(
   examController.updateExam
 );
 router.post(
-  '/:id/publish',
-  validate({ params: examIdSchema }),
-  examController.publishExam
-);
-router.post('/:id/close', validate({ params: examIdSchema }), examController.closeExam);
-router.post(
   '/:id/regrade',
   validate({ params: examIdSchema }),
   examController.regradeExamAttempts

@@ -12,10 +12,11 @@ services:
         - CMD-SHELL
         - >
           mongosh --quiet --eval "try { rs.status().ok } catch (e) { rs.initiate({_id:'rs0',members:[{_id:0,host:'mongodb:27017'}]}).ok }"
-      interval: 5s
+      interval: 60s
       timeout: 10s
       retries: 20
-      start_period: 10s
+      start_period: 60s
+      start_interval: 5s
     volumes:
       - mongodb_data:/data/db
 
@@ -31,15 +32,18 @@ services:
       CLIENT_URL: ${CLIENT_URL:-https://localhost:8443}
       CORS_EXTRA_ORIGINS: ${CORS_EXTRA_ORIGINS:-http://localhost:5180}
       MONGODB_URI: ${MONGODB_URI:-mongodb://mongodb:27017/thi_online?replicaSet=rs0}
-      JWT_SECRET: ${JWT_SECRET:-change_this_to_a_long_random_secret_at_least_32_chars}
-      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-7d}
-      COOKIE_NAME: ${COOKIE_NAME:-token}
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET is required (at least 32 characters)}
+      ACCESS_TOKEN_TTL_MINUTES: ${ACCESS_TOKEN_TTL_MINUTES:-15}
+      REFRESH_TOKEN_TTL_DAYS: ${REFRESH_TOKEN_TTL_DAYS:-7}
+      ACCESS_COOKIE_NAME: ${ACCESS_COOKIE_NAME:-access_token}
+      REFRESH_COOKIE_NAME: ${REFRESH_COOKIE_NAME:-refresh_token}
       COOKIE_SECURE: ${COOKIE_SECURE:-true}
       TRUST_PROXY: ${TRUST_PROXY:-1}
       SEED_ADMIN_USERNAME: ${SEED_ADMIN_USERNAME:-admin}
-      SEED_ADMIN_PASSWORD: ${SEED_ADMIN_PASSWORD:-Admin@123456}
+      SEED_ADMIN_PASSWORD: ${SEED_ADMIN_PASSWORD:?SEED_ADMIN_PASSWORD is required}
       SEED_ADMIN_FULLNAME: ${SEED_ADMIN_FULLNAME:-Quản trị viên}
       SEED_ADMIN_EMAIL: ${SEED_ADMIN_EMAIL:-admin@example.com}
+      SEED_ADMIN_RESET_PASSWORD: ${SEED_ADMIN_RESET_PASSWORD:-false}
     ports:
       - "${SERVER_PORT:-5050}:5050"
     depends_on:
@@ -50,10 +54,11 @@ services:
         - CMD-SHELL
         - >
           node -e "fetch('http://127.0.0.1:5050/api/health').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"
-      interval: 10s
+      interval: 60s
       timeout: 5s
       retries: 10
-      start_period: 30s
+      start_period: 60s
+      start_interval: 5s
 
   client:
     build:
@@ -74,10 +79,11 @@ services:
       test:
         - CMD-SHELL
         - wget -q --no-check-certificate -O /dev/null https://127.0.0.1/ || exit 1
-      interval: 10s
+      interval: 60s
       timeout: 5s
       retries: 5
       start_period: 10s
+      start_interval: 5s
     logging:
       driver: json-file
       options:

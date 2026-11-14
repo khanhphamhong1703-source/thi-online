@@ -10,7 +10,6 @@ const {
   assertOwnedClasses,
 } = require('./exam.classes');
 const {
-  EXAM_STATUS,
   generateAccessCode,
   getExamPhase,
   calculateTotals,
@@ -121,11 +120,10 @@ async function assertExamOwner(examId, teacherId) {
   return exam;
 }
 
-async function listExams(teacherId, { page, limit, search, status, classId }) {
+async function listExams(teacherId, { page, limit, search, classId }) {
   const { page: safePage, limit: safeLimit, skip } = getPagination(page, limit);
   const where = { teacherId };
 
-  if (status && status !== 'all') where.status = status;
   if (classId) {
     where.OR = [{ classId }, { classIds: { has: classId } }];
   }
@@ -222,7 +220,7 @@ async function createExam(teacherId, payload) {
 }
 
 async function updateExam(examId, teacherId, payload) {
-  const existing = await assertExamOwner(examId, teacherId);
+  await assertExamOwner(examId, teacherId);
   await finalizeExpiredAttempts({ examId });
   const inProgressAttempts = await prisma.examAttempt.count({
     where: { examId, status: 'IN_PROGRESS' },
@@ -235,9 +233,6 @@ async function updateExam(examId, teacherId, payload) {
   }
 
   const classIds = [...new Set(payload.classIds)];
-  if (existing.status === EXAM_STATUS.PUBLISHED && classIds.length === 0) {
-    throw new ApiError(400, 'Đề đã công bố cần ít nhất một lớp học. Hãy gán lớp trước khi lưu.');
-  }
   const classrooms = await assertOwnedClasses(teacherId, classIds);
   const primaryClass = classrooms[0];
   const searchText = buildSearchText(payload.title, payload.subject, classrooms);
@@ -305,64 +300,10 @@ async function updateExam(examId, teacherId, payload) {
   return decorateExam({ ...exam, classes: classrooms });
 }
 
-async function publishExam(examId, teacherId) {
-  const exam = await assertExamOwner(examId, teacherId);
-  if (exam.status !== EXAM_STATUS.DRAFT) {
-    throw new ApiError(400, 'Chỉ có thể công bố đề thi đang ở trạng thái nháp');
-  }
-  if (!exam.questions?.length) {
-    throw new ApiError(400, 'Cần ít nhất một câu hỏi trước khi công bố');
-  }
-  if (!getExamClassIds(exam).length) {
-    throw new ApiError(400, 'Cần gán ít nhất một lớp trước khi công bố đề thi');
-  }
-  const publishClasses = await getClassesByIds(getExamClassIds(exam));
-  if (!publishClasses.some((classroom) => !classroom.isArchived)) {
-    throw new ApiError(400, 'Đề thi cần ít nhất một lớp đang hoạt động trước khi công bố');
-  }
-  if (new Date(exam.closeAt).getTime() <= Date.now()) {
-    throw new ApiError(400, 'Thời gian kết thúc phải ở tương lai trước khi công bố');
-  }
-
-  const updated = await prisma.exam.update({
-    where: { id: examId },
-    data: { status: EXAM_STATUS.PUBLISHED, publishedAt: new Date() },
-    include: examInclude,
-  });
-  const classes = await getClassesByIds(getExamClassIds(updated));
-  return decorateExam({ ...updated, classes });
-}
-
-async function closeExam(examId, teacherId) {
-  const exam = await assertExamOwner(examId, teacherId);
-  if (exam.status !== EXAM_STATUS.PUBLISHED) {
-    throw new ApiError(400, 'Chỉ có thể đóng đề thi đã công bố');
-  }
-
-  const now = new Date();
-  const updated = await prisma.exam.update({
-    where: { id: examId },
-    data: {
-      status: EXAM_STATUS.CLOSED,
-      closeAt: new Date(exam.closeAt) > now ? now : exam.closeAt,
-    },
-    include: examInclude,
-  });
-
-  await prisma.examAttempt.updateMany({
-    where: { examId, status: 'IN_PROGRESS' },
-    data: { expiresAt: now },
-  });
-  await finalizeExpiredAttempts({ examId });
-
-  const classes = await getClassesByIds(getExamClassIds(updated));
-  return decorateExam({ ...updated, classes });
-}
-
 async function deleteExam(examId, teacherId) {
   const exam = await assertExamOwner(examId, teacherId);
-  if (exam.status !== EXAM_STATUS.DRAFT) {
-    throw new ApiError(400, 'Chỉ có thể xóa đề thi nháp');
+  if ((exam._count?.attempts ?? 0) > 0) {
+    throw new ApiError(400, 'Chỉ có thể xóa đề thi chưa có lượt làm bài');
   }
 
   await prisma.$transaction(async (transaction) => {
@@ -469,7 +410,6 @@ async function getExamResults(examId, teacherId, { page, limit, search, status, 
       title: exam.title,
       subject: exam.subject,
       accessCode: exam.accessCode,
-      status: exam.status,
       class: exam.class,
       classes,
     },
@@ -698,8 +638,6 @@ module.exports = {
   getExam,
   createExam,
   updateExam,
-  publishExam,
-  closeExam,
   deleteExam,
   getExamResults,
   regradeExamAttempts,

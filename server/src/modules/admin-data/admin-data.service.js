@@ -16,6 +16,7 @@ const teacherSelect = {
 };
 
 async function getSummary() {
+  const now = new Date();
   const [
     teachers,
     lockedTeachers,
@@ -23,33 +24,30 @@ async function getSummary() {
     archivedClasses,
     students,
     exams,
-    draftExams,
-    publishedExams,
-    closedExams,
+    openExams,
     attempts,
-  ] = await Promise.all([
-    prisma.user.count({ where: { role: 'TEACHER' } }),
-    prisma.user.count({ where: { role: 'TEACHER', isActive: false } }),
-    prisma.class.count(),
-    prisma.class.count({ where: { isArchived: true } }),
-    prisma.student.count(),
-    prisma.exam.count(),
-    prisma.exam.count({ where: { status: 'DRAFT' } }),
-    prisma.exam.count({ where: { status: 'PUBLISHED' } }),
-    prisma.exam.count({ where: { status: 'CLOSED' } }),
-    prisma.examAttempt.count(),
-  ]);
+  ] =
+    await Promise.all([
+      prisma.user.count({ where: { role: 'TEACHER' } }),
+      prisma.user.count({ where: { role: 'TEACHER', isActive: false } }),
+      prisma.class.count(),
+      prisma.class.count({ where: { isArchived: true } }),
+      prisma.student.count(),
+      prisma.exam.count(),
+      prisma.exam.count({
+        where: {
+          openAt: { lte: now },
+          OR: [{ closeAt: null }, { closeAt: { gt: now } }],
+        },
+      }),
+      prisma.examAttempt.count(),
+    ]);
 
   return {
     teachers: { total: teachers, locked: lockedTeachers },
     classes: { total: classes, archived: archivedClasses },
     students: { total: students },
-    exams: {
-      total: exams,
-      draft: draftExams,
-      published: publishedExams,
-      closed: closedExams,
-    },
+    exams: { total: exams, open: openExams },
     attempts: { total: attempts },
   };
 }
@@ -59,7 +57,7 @@ async function listTeachers({ page, limit, search, status }) {
   const where = { role: 'TEACHER' };
   if (status === 'active') where.isActive = true;
   if (status === 'locked') where.isActive = false;
-  if (search) where.searchText = { contains: search.toLowerCase() };
+  if (search) where.searchText = { contains: normalizeSearchText(search) };
 
   const [items, total] = await Promise.all([
     prisma.user.findMany({
@@ -149,10 +147,9 @@ async function listStudents({ page, limit, search }) {
   return { items, pagination: paginationMeta(total, safePage, safeLimit) };
 }
 
-async function listExams({ page, limit, search, status }) {
+async function listExams({ page, limit, search }) {
   const { page: safePage, limit: safeLimit, skip } = getPagination(page, limit);
   const where = {};
-  if (status && status !== 'all') where.status = status;
   if (search) where.searchText = { contains: search.toLowerCase() };
 
   const [items, total] = await Promise.all([
@@ -163,7 +160,6 @@ async function listExams({ page, limit, search, status }) {
         title: true,
         subject: true,
         accessCode: true,
-        status: true,
         openAt: true,
         closeAt: true,
         createdAt: true,
@@ -299,6 +295,7 @@ async function deleteTeacher(id) {
     const removedClasses = await transaction.class.deleteMany({
       where: { id: { in: classIds } },
     });
+    await transaction.refreshToken.deleteMany({ where: { userId: id } });
     await transaction.user.delete({ where: { id } });
 
     return {
@@ -574,7 +571,6 @@ async function getDeleteImpact(type, id) {
       select: {
         id: true,
         title: true,
-        status: true,
         accessCode: true,
         classId: true,
         classIds: true,
@@ -602,11 +598,6 @@ async function getDeleteImpact(type, id) {
       'Toàn bộ câu hỏi, lượt làm bài và điểm của đề sẽ bị xoá vĩnh viễn.',
       `Mã ca thi "${exam.accessCode}" được giải phóng; mã đã phát trước đây có thể trùng đề khác.`,
     ];
-    if (exam.status !== 'DRAFT') {
-      warnings.unshift(
-        `Đề đang ở trạng thái ${exam.status === 'PUBLISHED' ? 'đã công bố' : 'đã đóng'}: điểm đã ghi sẽ mất hoàn toàn.`
-      );
-    }
     if (inProgress > 0) {
       warnings.unshift(
         `Đang có ${inProgress} học sinh làm bài: bài làm sẽ bị huỷ ngay lập tức.`

@@ -6,6 +6,10 @@ export const ACTIVITY_CATEGORIES = [
   { value: 'ACCOUNT', label: 'Tài khoản' },
 ];
 
+export const TEACHER_ACTIVITY_CATEGORIES = ACTIVITY_CATEGORIES.filter(
+  (item) => item.value !== 'AUTH'
+);
+
 export const ACTIVITY_ACTIONS = {
   AUTH_LOGIN_SUCCESS: 'Đăng nhập',
   AUTH_LOGIN_FAILED: 'Đăng nhập',
@@ -19,23 +23,17 @@ export const ACTIVITY_ACTIONS = {
   STUDENT_EXPORT: 'Xuất danh sách học sinh',
   EXAM_CREATE: 'Tạo đề thi',
   EXAM_UPDATE: 'Cập nhật đề thi',
-  EXAM_PUBLISH: 'Công bố đề thi',
-  EXAM_CLOSE: 'Đóng đề thi',
   EXAM_REGRADE: 'Chấm lại bài làm',
   EXAM_DELETE: 'Xoá đề thi',
   EXAM_EXPORT_RESULTS: 'Xuất bảng điểm',
   PASSWORD_CHANGE: 'Đổi mật khẩu',
+  SESSION_DELETE: 'Xoá phiên đăng nhập',
+  SESSION_REVOKE_ALL: 'Thu hồi toàn bộ phiên',
 };
 
 export const ACTIVITY_STATUS = {
   SUCCESS: { label: 'Thành công', variant: 'active' },
   FAILED: { label: 'Thất bại', variant: 'locked' },
-};
-
-const EXAM_STATUS_LABELS = {
-  DRAFT: 'Bản nháp',
-  PUBLISHED: 'Đã công bố',
-  CLOSED: 'Đã đóng',
 };
 
 export function getActionLabel(action) {
@@ -75,12 +73,9 @@ export function describeActivityData(log) {
       return [data.className, data.classCode ? `(${data.classCode})` : ''].filter(Boolean).join(' · ');
     case 'EXAM_CREATE':
     case 'EXAM_UPDATE':
-    case 'EXAM_PUBLISH':
-    case 'EXAM_CLOSE':
       return [
         data.title,
         Number.isFinite(data.questionCount) ? `${data.questionCount} câu` : '',
-        EXAM_STATUS_LABELS[data.status] || data.status,
         data.classNames?.length ? data.classNames.join(', ') : '',
       ]
         .filter(Boolean)
@@ -99,6 +94,10 @@ export function describeActivityData(log) {
       return [data.title, `${data.attemptCount ?? 0} bài`].filter(Boolean).join(' · ');
     case 'PASSWORD_CHANGE':
       return 'Mật khẩu đã được thay đổi';
+    case 'SESSION_DELETE':
+      return [data.device, data.browser, data.ip].filter(Boolean).join(' · ');
+    case 'SESSION_REVOKE_ALL':
+      return `${data.activeSessions ?? 0} phiên đang hoạt động`;
     default:
       return '';
   }
@@ -123,11 +122,14 @@ export const ACTIVITY_DATA_LABELS = {
   classNames: 'Lớp được giao',
   questionCount: 'Số câu hỏi',
   attemptCount: 'Số bài làm',
+  device: 'Thiết bị',
+  browser: 'Trình duyệt',
+  ip: 'IP',
+  activeSessions: 'Số phiên đang hoạt động',
 };
 
 export function formatActivityValue(key, value) {
   if (value === null || value === undefined || value === '') return '—';
-  if (key === 'status' && EXAM_STATUS_LABELS[value]) return EXAM_STATUS_LABELS[value];
   if (Array.isArray(value)) return value.length ? value.join(', ') : '—';
   return String(value);
 }

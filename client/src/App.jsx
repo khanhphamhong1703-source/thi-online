@@ -9,6 +9,7 @@ const LoginPage = lazy(() => import('./pages/auth/LoginPage'));
 const AdminDashboardPage = lazy(() => import('./pages/admin/AdminDashboardPage'));
 const AdminDataPage = lazy(() => import('./pages/admin/AdminDataPage'));
 const AdminActivityPage = lazy(() => import('./pages/admin/AdminActivityPage'));
+const AdminSessionsPage = lazy(() => import('./pages/admin/AdminSessionsPage'));
 const AdminSettingsPage = lazy(() => import('./pages/admin/AdminSettingsPage'));
 const TeacherListPage = lazy(() => import('./pages/admin/TeacherListPage'));
 const TeacherCreatePage = lazy(() => import('./pages/admin/TeacherCreatePage'));
@@ -64,6 +65,7 @@ export default function App() {
         <Route path="data/activity" element={<Navigate to="/admin/activity" replace />} />
         <Route path="data/:section" element={<AdminDataPage />} />
         <Route path="activity" element={<AdminActivityPage />} />
+        <Route path="sessions" element={<AdminSessionsPage />} />
         <Route path="settings" element={<AdminSettingsPage />} />
         <Route path="teachers" element={<TeacherListPage />} />
         <Route path="teachers/new" element={<TeacherCreatePage />} />

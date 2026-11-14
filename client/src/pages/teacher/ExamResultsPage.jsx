@@ -16,6 +16,7 @@ import Pagination from '../../components/Pagination';
 import EmptyState from '../../components/EmptyState';
 import LoadingState from '../../components/LoadingState';
 import ExamAttemptDetailModal from '../../components/ExamAttemptDetailModal';
+import ConfirmDialog from '../../components/ConfirmDialog';
 
 export default function ExamResultsPage() {
   const { id } = useParams();
@@ -29,6 +30,7 @@ export default function ExamResultsPage() {
   const [loading, setLoading] = useState(true);
   const [exporting, setExporting] = useState(false);
   const [regrading, setRegrading] = useState(false);
+  const [confirmRegrade, setConfirmRegrade] = useState(false);
   const [detailAttemptId, setDetailAttemptId] = useState(null);
   const [detailData, setDetailData] = useState(null);
   const [detailLoading, setDetailLoading] = useState(false);
@@ -329,7 +331,7 @@ export default function ExamResultsPage() {
                   variant="secondary"
                   icon={RotateCcw}
                   loading={regrading}
-                  onClick={handleRegrade}
+                  onClick={() => setConfirmRegrade(true)}
                   title="Chấm lại toàn bộ bài đã nộp theo đáp án hiện tại"
                 >
                   Chấm lại
@@ -484,6 +486,20 @@ export default function ExamResultsPage() {
           </>
         )}
       </div>
+
+      <ConfirmDialog
+        open={confirmRegrade}
+        onClose={() => setConfirmRegrade(false)}
+        onConfirm={async () => {
+          await handleRegrade();
+          setConfirmRegrade(false);
+        }}
+        loading={regrading}
+        title="Chấm lại toàn bộ bài đã nộp?"
+        description="Điểm của tất cả bài đã nộp (kể cả bài tự nộp) sẽ được tính lại theo đáp án và thang điểm hiện tại của đề. Lượt đang làm bài không bị ảnh hưởng."
+        confirmLabel="Chấm lại"
+        tone="primary"
+      />
 
       <ExamAttemptDetailModal
         open={Boolean(detailAttemptId)}

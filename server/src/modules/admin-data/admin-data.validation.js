@@ -25,10 +25,6 @@ const studentQuerySchema = z.object({
 
 const examQuerySchema = z.object({
   ...paginationQuery,
-  status: z
-    .enum(['all', 'DRAFT', 'PUBLISHED', 'CLOSED'])
-    .optional()
-    .default('all'),
 });
 
 const idParamSchema = z.object({ id: objectId });

@@ -19,7 +19,6 @@ import { formatDateTime } from '../../utils/format';
 import { getExamDisplayStatus } from '../../utils/exam';
 import PageHeader from '../../components/PageHeader';
 import SearchInput from '../../components/SearchInput';
-import Select from '../../components/Select';
 import Button from '../../components/Button';
 import Badge from '../../components/Badge';
 import Pagination from '../../components/Pagination';
@@ -30,7 +29,6 @@ export default function ExamListPage() {
   const toast = useToast();
   const [searchTerm, setSearchTerm] = useState('');
   const debouncedSearch = useDebounce(searchTerm, 400);
-  const [status, setStatus] = useState('all');
   const [page, setPage] = useState(1);
   const [data, setData] = useState({ items: [], pagination: null });
   const [loading, setLoading] = useState(true);
@@ -42,7 +40,7 @@ export default function ExamListPage() {
     setLoading(true);
     setError('');
     examApi
-      .list({ page, limit: 10, search: debouncedSearch, status })
+      .list({ page, limit: 10, search: debouncedSearch })
       .then(({ data: payload }) => {
         if (!active) return;
         setData({ items: payload.data, pagination: payload.pagination });
@@ -59,7 +57,7 @@ export default function ExamListPage() {
     return () => {
       active = false;
     };
-  }, [page, debouncedSearch, status, reloadKey, toast]);
+  }, [page, debouncedSearch, reloadKey, toast]);
 
   const handleSearch = (event) => {
     setSearchTerm(event.target.value);
@@ -82,23 +80,6 @@ export default function ExamListPage() {
             className="w-full sm:max-w-sm"
           />
           <div className="flex flex-wrap items-center gap-2">
-            <label htmlFor="exam-status" className="whitespace-nowrap text-sm text-slate-500">
-              Trạng thái
-            </label>
-            <Select
-              id="exam-status"
-              value={status}
-              onChange={(event) => {
-                setStatus(event.target.value);
-                setPage(1);
-              }}
-              className="w-40"
-            >
-              <option value="all">Tất cả</option>
-              <option value="DRAFT">Bản nháp</option>
-              <option value="PUBLISHED">Đã công bố</option>
-              <option value="CLOSED">Đã đóng</option>
-            </Select>
             <Link
               to="/teacher/exams/new"
               className="focus-ring inline-flex h-10 items-center gap-2 rounded-lg bg-brand-600 px-4 text-sm font-semibold text-white shadow-sm shadow-brand-600/20 transition hover:bg-brand-700"
@@ -138,19 +119,18 @@ export default function ExamListPage() {
         ) : data.items.length === 0 ? (
           <EmptyState
             icon={ClipboardList}
-            title={debouncedSearch || status !== 'all' ? 'Không tìm thấy đề phù hợp' : 'Chưa có đề thi nào'}
+            title={debouncedSearch ? 'Không tìm thấy đề phù hợp' : 'Chưa có đề thi nào'}
             description={
-              debouncedSearch || status !== 'all'
-                ? 'Hãy thử từ khóa khác hoặc bỏ bộ lọc trạng thái.'
+              debouncedSearch
+                ? 'Hãy thử từ khóa khác.'
                 : 'Tạo đề trắc nghiệm đầu tiên để bắt đầu tổ chức thi cho lớp học.'
             }
             action={
-              debouncedSearch || status !== 'all' ? (
+              debouncedSearch ? (
                 <Button
                   variant="secondary"
                   onClick={() => {
                     setSearchTerm('');
-                    setStatus('all');
                     setPage(1);
                   }}
                 >

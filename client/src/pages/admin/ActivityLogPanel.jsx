@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { History, RefreshCcw } from 'lucide-react';
+import { History, RefreshCcw, SlidersHorizontal } from 'lucide-react';
 import { activityApi } from '../../api/activity';
 import { adminDataApi } from '../../api/adminData';
 import { getErrorMessage } from '../../api/client';
@@ -38,6 +38,7 @@ export default function ActivityLogPanel() {
   const [error, setError] = useState('');
   const [selected, setSelected] = useState(null);
   const [reloadKey, setReloadKey] = useState(0);
+  const [filtersOpen, setFiltersOpen] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -108,6 +109,13 @@ export default function ActivityLogPanel() {
     setPage(1);
   };
 
+  const activeFilterCount =
+    (teacherId ? 1 : 0) +
+    (category !== 'all' ? 1 : 0) +
+    (status !== 'all' ? 1 : 0) +
+    (from ? 1 : 0) +
+    (to ? 1 : 0);
+
   const selectedStatus = selected
     ? ACTIVITY_STATUS[selected.status] || ACTIVITY_STATUS.SUCCESS
     : null;
@@ -115,7 +123,7 @@ export default function ActivityLogPanel() {
   return (
     <section className="surface flex min-h-0 flex-1 flex-col overflow-hidden">
       <div className="flex shrink-0 flex-col gap-3 border-b border-slate-100 p-4">
-        <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
+        <div className="flex items-center gap-2">
           <SearchInput
             value={searchTerm}
             onChange={(event) => {
@@ -123,65 +131,90 @@ export default function ActivityLogPanel() {
               setPage(1);
             }}
             placeholder="Tìm theo giáo viên, lớp, học sinh, đề thi..."
-            className="lg:max-w-sm"
+            className="min-w-0 flex-1 lg:max-w-sm"
           />
-          <div className="flex flex-wrap items-center gap-2">
-            <Select
-              value={teacherId}
-              aria-label="Lọc theo giáo viên"
-              onChange={(event) => {
-                setTeacherId(event.target.value);
-                setPage(1);
-              }}
-              className="w-full sm:w-52"
-            >
-              <option value="">Tất cả giáo viên</option>
-              {teachers.map((teacher) => (
-                <option key={teacher.id} value={teacher.id}>
-                  {teacher.fullName} (@{teacher.username})
-                </option>
-              ))}
-            </Select>
-            <Button
-              variant="secondary"
-              icon={RefreshCcw}
-              onClick={() => setReloadKey((value) => value + 1)}
-            >
-              Làm mới
-            </Button>
-          </div>
+          <button
+            type="button"
+            onClick={() => setFiltersOpen((value) => !value)}
+            className="focus-ring inline-flex h-10 shrink-0 items-center gap-2 rounded-lg border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 sm:hidden"
+            aria-expanded={filtersOpen}
+            aria-controls="activity-filters"
+          >
+            <SlidersHorizontal className="h-4 w-4" />
+            Bộ lọc
+            {activeFilterCount ? (
+              <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-brand-600 px-1 text-[11px] font-bold text-white">
+                {activeFilterCount}
+              </span>
+            ) : null}
+          </button>
+          <Button
+            variant="secondary"
+            icon={RefreshCcw}
+            onClick={() => setReloadKey((value) => value + 1)}
+            className="ml-auto shrink-0"
+            aria-label="Làm mới"
+            title="Làm mới"
+          >
+            <span className="hidden sm:inline">Làm mới</span>
+          </Button>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2">
+        <div
+          id="activity-filters"
+          className={
+            filtersOpen
+              ? 'flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center'
+              : 'hidden flex-col gap-2 sm:flex sm:flex-row sm:flex-wrap sm:items-center'
+          }
+        >
           <Select
-            value={category}
-            aria-label="Nhóm hoạt động"
+            value={teacherId}
+            aria-label="Lọc theo giáo viên"
             onChange={(event) => {
-              setCategory(event.target.value);
+              setTeacherId(event.target.value);
               setPage(1);
             }}
-            className="w-full sm:w-40"
+            className="w-full sm:w-52"
           >
-            <option value="all">Tất cả hoạt động</option>
-            {ACTIVITY_CATEGORIES.map((item) => (
-              <option key={item.value} value={item.value}>
-                {item.label}
+            <option value="">Tất cả giáo viên</option>
+            {teachers.map((teacher) => (
+              <option key={teacher.id} value={teacher.id}>
+                {teacher.fullName} (@{teacher.username})
               </option>
             ))}
           </Select>
-          <Select
-            value={status}
-            aria-label="Lọc theo kết quả"
-            onChange={(event) => {
-              setStatus(event.target.value);
-              setPage(1);
-            }}
-            className="w-full sm:w-40"
-          >
-            <option value="all">Mọi kết quả</option>
-            <option value="SUCCESS">Thành công</option>
-            <option value="FAILED">Thất bại</option>
-          </Select>
+          <div className="grid grid-cols-[1.35fr_1fr] gap-2 sm:contents">
+            <Select
+              value={category}
+              aria-label="Nhóm hoạt động"
+              onChange={(event) => {
+                setCategory(event.target.value);
+                setPage(1);
+              }}
+              className="w-full sm:w-40"
+            >
+              <option value="all">Tất cả hoạt động</option>
+              {ACTIVITY_CATEGORIES.map((item) => (
+                <option key={item.value} value={item.value}>
+                  {item.label}
+                </option>
+              ))}
+            </Select>
+            <Select
+              value={status}
+              aria-label="Lọc theo kết quả"
+              onChange={(event) => {
+                setStatus(event.target.value);
+                setPage(1);
+              }}
+              className="w-full sm:w-40"
+            >
+              <option value="all">Mọi kết quả</option>
+              <option value="SUCCESS">Thành công</option>
+              <option value="FAILED">Thất bại</option>
+            </Select>
+          </div>
           <div className="flex items-center gap-2">
             <input
               type="date"
@@ -207,9 +240,11 @@ export default function ActivityLogPanel() {
               aria-label="Đến ngày"
             />
           </div>
-          <Button variant="ghost" onClick={resetFilters}>
-            Xoá lọc
-          </Button>
+          {activeFilterCount || searchTerm ? (
+            <Button variant="ghost" onClick={resetFilters} className="self-start sm:self-auto">
+              Xoá lọc
+            </Button>
+          ) : null}
         </div>
       </div>
 
@@ -234,7 +269,7 @@ export default function ActivityLogPanel() {
             <thead className="sticky top-0 z-10">
               <tr className="table-header">
                 <th className="px-4 py-3 font-semibold">Thời gian</th>
-                <th className="px-4 py-3 font-semibold">Giáo viên</th>
+                <th className="px-4 py-3 font-semibold">Tài khoản</th>
                 <th className="px-4 py-3 font-semibold">Hành động</th>
                 <th className="px-4 py-3 font-semibold">Kết quả</th>
                 <th className="px-4 py-3 font-semibold">Dữ liệu</th>
@@ -344,7 +379,7 @@ export default function ActivityLogPanel() {
         {selected ? (
           <dl className="space-y-1">
             <div className="flex justify-between gap-4 border-b border-slate-100 py-2">
-              <dt className="text-xs font-medium text-slate-500">Giáo viên</dt>
+              <dt className="text-xs font-medium text-slate-500">Tài khoản</dt>
               <dd className="text-sm text-slate-800">
                 {selected.actorFullName} (@{selected.actorUsername})
               </dd>

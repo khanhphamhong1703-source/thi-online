@@ -6,13 +6,54 @@ const api = axios.create({
   timeout: 30000,
 });
 
+let refreshPromise = null;
+const REFRESH_LOCK = 'vieexam-auth-refresh';
+
+function refreshAccessToken() {
+  if (!refreshPromise) {
+    const request = () => api.post('/auth/refresh');
+    // Khóa theo origin để nhiều tab không xoay vòng cùng một refresh token.
+    const hasWebLocks = typeof navigator !== 'undefined' && Boolean(navigator.locks?.request);
+    const run = hasWebLocks
+      ? () => navigator.locks.request(REFRESH_LOCK, request)
+      : request;
+    refreshPromise = run().finally(() => {
+      refreshPromise = null;
+    });
+  }
+  return refreshPromise;
+}
+
 api.interceptors.response.use(
   (response) => response,
-  (error) => {
+  async (error) => {
     const url = error.config?.url || '';
     const isPublicAttempt = url.includes('/public/attempts');
     const isLoginRequest = url.includes('/auth/login');
-    if (error.response?.status === 401 && !isLoginRequest && !isPublicAttempt) {
+    const isRefreshRequest = url.includes('/auth/refresh');
+    const config = error.config;
+
+    if (
+      error.response?.status === 401 &&
+      !isLoginRequest &&
+      !isPublicAttempt &&
+      !isRefreshRequest &&
+      config &&
+      !config._retry
+    ) {
+      config._retry = true;
+      try {
+        await refreshAccessToken();
+        return api(config);
+      } catch (refreshError) {
+        if ([401, 403].includes(refreshError.response?.status)) {
+          window.dispatchEvent(new Event('auth:unauthorized'));
+        }
+        return Promise.reject(refreshError);
+      }
+    }
+
+    if (error.response?.status === 401 && !isLoginRequest && !isPublicAttempt && !isRefreshRequest) {
       window.dispatchEvent(new Event('auth:unauthorized'));
     }
     return Promise.reject(error);

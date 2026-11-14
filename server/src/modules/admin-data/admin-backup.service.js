@@ -63,8 +63,7 @@ const examSchema = z.object({
   accessCode: z.string().min(1),
   durationMinutes: z.number().int().positive(),
   openAt: date,
-  closeAt: date,
-  status: z.enum(['DRAFT', 'PUBLISHED', 'CLOSED']),
+  closeAt: date.nullable(),
   shuffleQuestions: z.boolean(),
   shuffleOptions: z.boolean(),
   maxAttempts: z.number().int().nonnegative(),
@@ -72,7 +71,6 @@ const examSchema = z.object({
   sectionTitles: z.record(z.string(), z.string()).nullable().optional(),
   trueFalseScores: z.array(z.number().nonnegative()).length(4).nullable().optional(),
   searchText: z.string(),
-  publishedAt: date.nullable().optional(),
   teacherId: objectId,
   classId: objectId.nullable().optional(),
   classIds: z.array(objectId),
@@ -321,6 +319,7 @@ async function mergeAll(tx, data) {
 }
 
 async function replaceAll(tx, data) {
+  await tx.refreshToken.deleteMany();
   await tx.examAttempt.deleteMany();
   await tx.question.deleteMany();
   await tx.enrollment.deleteMany();

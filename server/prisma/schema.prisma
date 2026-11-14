@@ -8,22 +8,42 @@ datasource db {
 }
 
 model User {
-  id           String   @id @default(auto()) @map("_id") @db.ObjectId
-  username     String   @unique
-  password     String
-  fullName     String
-  email        String?
-  phone        String?
-  role         String   @default("TEACHER")
-  isActive     Boolean  @default(true)
-  searchText   String   @default("")
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-  classes      Class[]  @relation("TeacherClasses")
-  exams        Exam[]   @relation("TeacherExams")
+  id            String         @id @default(auto()) @map("_id") @db.ObjectId
+  username      String         @unique
+  password      String
+  fullName      String
+  email         String?
+  phone         String?
+  role          String         @default("TEACHER")
+  isActive      Boolean        @default(true)
+  tokenVersion  Int?           @default(0)
+  searchText    String         @default("")
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  classes       Class[]        @relation("TeacherClasses")
+  exams         Exam[]         @relation("TeacherExams")
+  refreshTokens RefreshToken[]
 
   @@index([role, isActive])
   @@map("users")
+}
+
+model RefreshToken {
+  id             String    @id @default(auto()) @map("_id") @db.ObjectId
+  tokenHash      String    @unique
+  userId         String    @db.ObjectId
+  user           User      @relation(fields: [userId], references: [id])
+  tokenVersion   Int       @default(0)
+  expiresAt      DateTime
+  revokedAt      DateTime?
+  replacedByHash String?
+  userAgent      String?
+  ip             String?
+  createdAt      DateTime  @default(now())
+
+  @@index([userId, revokedAt])
+  @@index([expiresAt])
+  @@map("refresh_tokens")
 }
 
 model Class {
@@ -47,15 +67,15 @@ model Class {
 }
 
 model Student {
-  id           String       @id @default(auto()) @map("_id") @db.ObjectId
-  studentCode  String       @unique
+  id           String        @id @default(auto()) @map("_id") @db.ObjectId
+  studentCode  String        @unique
   fullName     String
   dateOfBirth  DateTime
   phone        String?
   email        String?
-  searchText   String       @default("")
-  createdAt    DateTime     @default(now())
-  updatedAt    DateTime     @updatedAt
+  searchText   String        @default("")
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
   enrollments  Enrollment[]
   examAttempts ExamAttempt[]
 
@@ -76,36 +96,34 @@ model Enrollment {
 }
 
 model Exam {
-  id                String        @id @default(auto()) @map("_id") @db.ObjectId
-  title             String
-  subject           String
-  description       String?
-  accessCode        String        @unique
-  durationMinutes   Int
-  openAt            DateTime
-  closeAt           DateTime
-  status            String        @default("DRAFT")
-  shuffleQuestions  Boolean       @default(false)
-  shuffleOptions    Boolean       @default(false)
-  maxAttempts       Int           @default(1)
-  showScore         Boolean       @default(true)
-  sectionTitles     Json?
-  trueFalseScores   Json?
-  searchText        String        @default("")
-  publishedAt       DateTime?
-  teacherId         String        @db.ObjectId
-  classId           String?       @db.ObjectId
-  classIds          String[]      @default([])
-  teacher           User          @relation("TeacherExams", fields: [teacherId], references: [id])
-  class             Class?        @relation(fields: [classId], references: [id])
-  questions         Question[]
-  attempts          ExamAttempt[]
-  createdAt         DateTime      @default(now())
-  updatedAt         DateTime      @updatedAt
+  id               String        @id @default(auto()) @map("_id") @db.ObjectId
+  title            String
+  subject          String
+  description      String?
+  accessCode       String        @unique
+  durationMinutes  Int
+  openAt           DateTime
+  closeAt          DateTime?
+  shuffleQuestions Boolean       @default(false)
+  shuffleOptions   Boolean       @default(false)
+  maxAttempts      Int           @default(1)
+  showScore        Boolean       @default(true)
+  sectionTitles    Json?
+  trueFalseScores  Json?
+  searchText       String        @default("")
+  teacherId        String        @db.ObjectId
+  classId          String?       @db.ObjectId
+  classIds         String[]      @default([])
+  teacher          User          @relation("TeacherExams", fields: [teacherId], references: [id])
+  class            Class?        @relation(fields: [classId], references: [id])
+  questions        Question[]
+  attempts         ExamAttempt[]
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
 
-  @@index([teacherId, status])
+  @@index([teacherId, createdAt])
   @@index([classId])
-  @@index([status, openAt])
+  @@index([openAt])
   @@map("exams")
 }
 
@@ -129,27 +147,27 @@ model Question {
 }
 
 model ExamAttempt {
-  id             String    @id @default(auto()) @map("_id") @db.ObjectId
-  attemptNumber  Int
-  status         String    @default("IN_PROGRESS")
-  answers        Json?
-  questionOrder  String[]
-  optionOrders   Json?
-  questionSnapshot Json?
+  id                      String    @id @default(auto()) @map("_id") @db.ObjectId
+  attemptNumber           Int
+  status                  String    @default("IN_PROGRESS")
+  answers                 Json?
+  questionOrder           String[]
+  optionOrders            Json?
+  questionSnapshot        Json?
   trueFalseScoresSnapshot Json?
-  score          Float?
-  maxScore       Float?
-  correctCount   Int?
-  exitCount      Int       @default(0)
-  startedAt      DateTime  @default(now())
-  expiresAt      DateTime
-  submittedAt    DateTime?
-  examId         String    @db.ObjectId
-  studentId      String    @db.ObjectId
-  exam           Exam      @relation(fields: [examId], references: [id])
-  student        Student   @relation(fields: [studentId], references: [id])
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
+  score                   Float?
+  maxScore                Float?
+  correctCount            Int?
+  exitCount               Int       @default(0)
+  startedAt               DateTime  @default(now())
+  expiresAt               DateTime
+  submittedAt             DateTime?
+  examId                  String    @db.ObjectId
+  studentId               String    @db.ObjectId
+  exam                    Exam      @relation(fields: [examId], references: [id])
+  student                 Student   @relation(fields: [studentId], references: [id])
+  createdAt               DateTime  @default(now())
+  updatedAt               DateTime  @updatedAt
 
   @@unique([examId, studentId, attemptNumber])
   @@index([examId, status])

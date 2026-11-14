@@ -13,10 +13,11 @@ services:
         - CMD-SHELL
         - >
           mongosh --quiet --eval "try { rs.status().ok } catch (e) { rs.initiate({_id:'rs0',members:[{_id:0,host:'mongodb:27017'}]}).ok }"
-      interval: 5s
+      interval: 60s
       timeout: 10s
       retries: 20
-      start_period: 10s
+      start_period: 60s
+      start_interval: 5s
     volumes:
       - mongodb_data:/data/db
     logging:
@@ -37,8 +38,10 @@ services:
       CLIENT_URL: ${CLIENT_URL:?CLIENT_URL is required, e.g. https://exam.example.com}
       MONGODB_URI: ${MONGODB_URI:-mongodb://mongodb:27017/thi_online?replicaSet=rs0}
       JWT_SECRET: ${JWT_SECRET:?JWT_SECRET is required (at least 32 characters)}
-      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-7d}
-      COOKIE_NAME: ${COOKIE_NAME:-token}
+      ACCESS_TOKEN_TTL_MINUTES: ${ACCESS_TOKEN_TTL_MINUTES:-15}
+      REFRESH_TOKEN_TTL_DAYS: ${REFRESH_TOKEN_TTL_DAYS:-7}
+      ACCESS_COOKIE_NAME: ${ACCESS_COOKIE_NAME:-access_token}
+      REFRESH_COOKIE_NAME: ${REFRESH_COOKIE_NAME:-refresh_token}
       COOKIE_SECURE: "true"
       TRUST_PROXY: "1"
       SEED_ADMIN_USERNAME: ${SEED_ADMIN_USERNAME:-admin}
@@ -56,10 +59,11 @@ services:
         - CMD-SHELL
         - >
           node -e "fetch('http://127.0.0.1:5050/api/health').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"
-      interval: 10s
+      interval: 60s
       timeout: 5s
       retries: 10
-      start_period: 30s
+      start_period: 60s
+      start_interval: 5s
     stop_grace_period: 30s
     logging:
       driver: json-file
@@ -86,10 +90,11 @@ services:
       test:
         - CMD-SHELL
         - wget -q --no-check-certificate -O /dev/null https://127.0.0.1/ || exit 1
-      interval: 10s
+      interval: 60s
       timeout: 5s
       retries: 5
       start_period: 10s
+      start_interval: 5s
     logging:
       driver: json-file
       options:

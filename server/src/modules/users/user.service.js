@@ -2,6 +2,8 @@ const bcrypt = require('bcryptjs');
 const prisma = require('../../config/prisma');
 const ApiError = require('../../utils/ApiError');
 const { getPagination, paginationMeta } = require('../../utils/pagination');
+const { normalizeSearchText } = require('../../utils/search');
+const { revokeAllSessions, toTokenVersion } = require('../auth/auth.tokens');
 
 const teacherSelect = {
   id: true,
@@ -17,7 +19,7 @@ const teacherSelect = {
 };
 
 function buildTeacherSearch(fullName, username, email, phone) {
-  return [fullName, username, email || '', phone || ''].join(' ').toLowerCase();
+  return normalizeSearchText([fullName, username, email || '', phone || ''].join(' '));
 }
 
 function normalizeOptional(value) {
@@ -40,7 +42,7 @@ async function listTeachers({ page, limit, search, status }) {
 
   if (status === 'active') where.isActive = true;
   if (status === 'locked') where.isActive = false;
-  if (search) where.searchText = { contains: search.toLowerCase() };
+  if (search) where.searchText = { contains: normalizeSearchText(search) };
 
   const [teachers, total] = await Promise.all([
     prisma.user.findMany({
@@ -158,6 +160,10 @@ async function setTeacherStatus(id, isActive) {
     throw new ApiError(404, 'Không tìm thấy giáo viên');
   }
 
+  if (!isActive) {
+    await revokeAllSessions(teacher.id, toTokenVersion(teacher));
+  }
+
   const updated = await prisma.user.update({
     where: { id },
     data: { isActive },
@@ -174,7 +180,7 @@ async function resetTeacherPassword(id, newPassword) {
   }
 
   const password = await bcrypt.hash(newPassword, 10);
-  await prisma.user.update({ where: { id }, data: { password } });
+  await revokeAllSessions(teacher.id, toTokenVersion(teacher), { password });
 }
 
 async function getAdminDashboard() {
@@ -203,6 +209,7 @@ async function getAdminDashboard() {
 }
 
 module.exports = {
+  buildTeacherSearch,
   listTeachers,
   getTeacher,
   createTeacher,

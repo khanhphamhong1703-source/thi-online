@@ -46,38 +46,6 @@ const updateExam = asyncHandler(async (req, res) => {
   res.json({ success: true, message: 'Cập nhật đề thi thành công', data });
 });
 
-const publishExam = asyncHandler(async (req, res) => {
-  const data = await examService.publishExam(req.params.id, req.user.id);
-
-  await recordActivity({
-    req,
-    category: 'EXAM',
-    action: 'EXAM_PUBLISH',
-    targetType: 'EXAM',
-    targetId: data.id,
-    targetLabel: data.title,
-    data: examLogData(data),
-  });
-
-  res.json({ success: true, message: 'Đã công bố đề thi', data });
-});
-
-const closeExam = asyncHandler(async (req, res) => {
-  const data = await examService.closeExam(req.params.id, req.user.id);
-
-  await recordActivity({
-    req,
-    category: 'EXAM',
-    action: 'EXAM_CLOSE',
-    targetType: 'EXAM',
-    targetId: data.id,
-    targetLabel: data.title,
-    data: examLogData(data),
-  });
-
-  res.json({ success: true, message: 'Đã đóng đề thi', data });
-});
-
 const deleteExam = asyncHandler(async (req, res) => {
   const data = await examService.deleteExam(req.params.id, req.user.id);
 
@@ -95,7 +63,7 @@ const deleteExam = asyncHandler(async (req, res) => {
     },
   });
 
-  res.json({ success: true, message: 'Đã xóa đề thi nháp' });
+  res.json({ success: true, message: 'Đã xóa đề thi' });
 });
 
 const getResults = asyncHandler(async (req, res) => {
@@ -176,8 +144,6 @@ module.exports = {
   getExam,
   createExam,
   updateExam,
-  publishExam,
-  closeExam,
   deleteExam,
   getResults,
   regradeExamAttempts,

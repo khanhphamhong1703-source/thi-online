@@ -6,9 +6,7 @@ import {
   Copy,
   Edit3,
   FileText,
-  LockKeyhole,
   Presentation,
-  Send,
   Shuffle,
   Trash2,
   Trophy,
@@ -79,17 +77,9 @@ export default function ExamDetailPage() {
     if (!confirmType) return;
     setActionLoading(true);
     try {
-      if (confirmType === 'publish') {
-        const { data } = await examApi.publish(id);
-        setExam(data.data);
-        toast.success(data.message);
-      } else if (confirmType === 'close') {
-        const { data } = await examApi.close(id);
-        setExam(data.data);
-        toast.success(data.message);
-      } else if (confirmType === 'delete') {
+      if (confirmType === 'delete') {
         await examApi.remove(id);
-        toast.success('Đã xóa đề thi nháp');
+        toast.success('Đã xóa đề thi');
         navigate('/teacher/exams');
         return;
       }
@@ -117,14 +107,6 @@ export default function ExamDetailPage() {
 
   const statusMeta = getExamDisplayStatus(exam);
   const examClasses = exam.classes?.length ? exam.classes : [];
-  const activeClassCount = examClasses.filter((classroom) => !classroom.isArchived).length;
-  const publishBlockReason = !examClasses.length
-    ? 'Đề chưa được gán lớp nên chưa thể công bố. Bấm “Chỉnh sửa” để chọn ít nhất một lớp cho đề.'
-    : !activeClassCount
-      ? 'Các lớp của đề đang bị lưu trữ nên chưa thể công bố. Bấm “Chỉnh sửa” để chọn lớp đang hoạt động.'
-      : new Date(exam.closeAt).getTime() <= Date.now()
-        ? 'Thời gian kết thúc của đề đã qua nên chưa thể công bố. Bấm “Chỉnh sửa” để đặt lại thời gian.'
-        : '';
   const sectionSummary = ['I', 'II', 'III']
     .map((section) => {
       const questions = (exam.questions || []).filter(
@@ -139,23 +121,9 @@ export default function ExamDetailPage() {
     })
     .filter((item) => item.count > 0);
   const confirmConfig = {
-    publish: {
-      title: 'Công bố đề thi?',
-      description:
-        'Sau khi công bố, đề sẽ xuất hiện trên bảng thi. Bạn vẫn có thể chỉnh sửa khi không có học sinh đang làm bài; hãy kiểm tra kỹ câu hỏi, đáp án và thời gian.',
-      confirmLabel: 'Công bố đề',
-      tone: 'primary',
-    },
-    close: {
-      title: 'Đóng ca thi?',
-      description:
-        'Học sinh sẽ không thể bắt đầu lượt làm mới. Các bài đang làm sẽ được hệ thống tự nộp khi hết thời gian hoặc khi truy cập lại.',
-      confirmLabel: 'Đóng ca thi',
-      tone: 'danger',
-    },
     delete: {
-      title: 'Xóa đề thi nháp?',
-      description: 'Đề nháp và toàn bộ câu hỏi sẽ bị xóa vĩnh viễn. Thao tác này không thể hoàn tác.',
+      title: 'Xóa đề thi?',
+      description: 'Đề thi và toàn bộ câu hỏi sẽ bị xóa vĩnh viễn. Thao tác này không thể hoàn tác.',
       confirmLabel: 'Xóa đề thi',
       tone: 'danger',
     },
@@ -264,7 +232,7 @@ export default function ExamDetailPage() {
                 <dd className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm font-medium text-slate-800">
                   {formatDateTime(exam.openAt)}
                   <span className="text-slate-400">→</span>
-                  {formatDateTime(exam.closeAt)}
+                  {exam.closeAt ? formatDateTime(exam.closeAt) : 'Không giới hạn'}
                 </dd>
               </div>
               {exam.description ? (
@@ -396,49 +364,20 @@ export default function ExamDetailPage() {
               >
                 Kết quả
               </Button>
-              {exam.status === 'DRAFT' ? (
-                <Button
-                  variant="secondary"
-                  icon={Send}
-                  className="w-full justify-start"
-                  onClick={() => setConfirmType('publish')}
-                  disabled={Boolean(publishBlockReason)}
-                  title={publishBlockReason || undefined}
-                >
-                  Công bố
-                </Button>
-              ) : null}
-              {exam.status === 'PUBLISHED' ? (
-                <Button
-                  variant="danger"
-                  icon={LockKeyhole}
-                  className="w-full justify-start"
-                  onClick={() => setConfirmType('close')}
-                >
-                  Đóng ca thi
-                </Button>
-              ) : null}
             </div>
           </div>
 
           <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-xs leading-5 text-amber-800">
             <div className="flex items-start gap-2">
               <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
-              {exam.status !== 'DRAFT' ? (
-                <span>
-                  Đề đã công bố có thể được chỉnh sửa. Thay đổi chỉ áp dụng cho các lượt làm mới và
-                  không thể sửa khi đang có học sinh làm bài.
-                </span>
-              ) : (
-                <span>
-                  {publishBlockReason ||
-                    'Học sinh chỉ thấy đề sau khi bạn bấm Công bố. Hãy kiểm tra kỹ nội dung trước khi công bố.'}
-                </span>
-              )}
+              <span>
+                Đề tự mở và đóng theo thời gian đã đặt. Học sinh chỉ bắt đầu làm được trong khoảng
+                thời gian này; nếu thời gian đóng để trống thì đề không giới hạn thời gian đóng.
+              </span>
             </div>
           </div>
 
-          {exam.status === 'DRAFT' ? (
+          {exam.attemptCount === 0 ? (
             <div className="surface p-3">
               <Button
                 variant="ghost-danger"
@@ -446,7 +385,7 @@ export default function ExamDetailPage() {
                 className="w-full justify-start"
                 onClick={() => setConfirmType('delete')}
               >
-                Xóa đề nháp
+                Xóa đề thi
               </Button>
             </div>
           ) : null}

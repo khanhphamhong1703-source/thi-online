@@ -9,12 +9,22 @@ async function main() {
   const password = process.env.SEED_ADMIN_PASSWORD;
   const fullName = process.env.SEED_ADMIN_FULLNAME || 'Quản trị viên';
   const email = process.env.SEED_ADMIN_EMAIL || null;
+  const isProduction = process.env.NODE_ENV === 'production';
 
   if (!password || password.length < 8) {
     throw new Error('SEED_ADMIN_PASSWORD phải có ít nhất 8 ký tự trong file .env');
   }
 
-  const resetPassword = process.env.SEED_ADMIN_RESET_PASSWORD !== 'false';
+  if (
+    isProduction &&
+    /change[_-]?this|replace[-_]?with|admin@123456/i.test(password)
+  ) {
+    throw new Error(
+      'SEED_ADMIN_PASSWORD đang dùng giá trị mẫu. Hãy đặt mật khẩu mạnh trước khi chạy production.'
+    );
+  }
+
+  const resetPassword = process.env.SEED_ADMIN_RESET_PASSWORD === 'true';
   const passwordHash = await bcrypt.hash(password, 10);
 
   const data = {
@@ -27,12 +37,22 @@ async function main() {
   };
 
   const existing = await prisma.user.findUnique({ where: { username } });
-  const admin = existing
-    ? await prisma.user.update({
-        where: { username },
-        data: resetPassword ? { ...data, password: passwordHash } : data,
-      })
-    : await prisma.user.create({ data: { username, ...data, password: passwordHash } });
+  let admin;
+  if (existing && resetPassword) {
+    admin = await prisma.user.update({
+      where: { username },
+      data: {
+        ...data,
+        password: passwordHash,
+        tokenVersion: (existing.tokenVersion ?? 0) + 1,
+      },
+    });
+    await prisma.refreshToken.deleteMany({ where: { userId: existing.id } });
+  } else if (existing) {
+    admin = await prisma.user.update({ where: { username }, data });
+  } else {
+    admin = await prisma.user.create({ data: { username, ...data, password: passwordHash } });
+  }
 
   console.log(
     existing && !resetPassword

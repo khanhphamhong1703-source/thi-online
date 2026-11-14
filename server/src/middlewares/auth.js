@@ -5,7 +5,7 @@ const ApiError = require('../utils/ApiError');
 const asyncHandler = require('../utils/asyncHandler');
 
 const authenticate = asyncHandler(async (req, _res, next) => {
-  let token = req.cookies?.[env.COOKIE_NAME];
+  let token = req.cookies?.[env.ACCESS_COOKIE_NAME];
 
   if (!token && req.headers.authorization?.startsWith('Bearer ')) {
     token = req.headers.authorization.slice(7);
@@ -22,7 +22,7 @@ const authenticate = asyncHandler(async (req, _res, next) => {
     throw new ApiError(401, 'Phiên đăng nhập không hợp lệ hoặc đã hết hạn');
   }
 
-  if (!payload.sub || payload.scope === 'EXAM_ATTEMPT') {
+  if (!payload.sub || payload.scope !== 'ACCESS') {
     throw new ApiError(401, 'Phiên đăng nhập không hợp lệ hoặc đã hết hạn');
   }
 
@@ -36,6 +36,7 @@ const authenticate = asyncHandler(async (req, _res, next) => {
       phone: true,
       role: true,
       isActive: true,
+      tokenVersion: true,
       createdAt: true,
     },
   });
@@ -46,6 +47,10 @@ const authenticate = asyncHandler(async (req, _res, next) => {
 
   if (!user.isActive) {
     throw new ApiError(403, 'Tài khoản đã bị khóa. Vui lòng liên hệ quản trị viên.');
+  }
+
+  if ((payload.tv ?? 0) !== (user.tokenVersion ?? 0)) {
+    throw new ApiError(401, 'Phiên đăng nhập đã hết hiệu lực. Vui lòng đăng nhập lại.');
   }
 
   req.user = user;
